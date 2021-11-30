@@ -4,10 +4,13 @@
   "description": "A mock server mimicking Algolia's search index for e2e testing purposes",
   "author": "MyAdbox R&D",
   "license": "MIT",
-  "main": "dist/index.js",
+  "bin": {
+    "algolia-mock-server": "./bin/cli.js"
+  },
+  "main": "bin/cli.js",
   "scripts": {
-    "start": "tsc && node ./dist/index.js",
-    "dev": "ts-node-dev ./src/index.ts",
+    "build": "tsc",
+    "dev": "ts-node-dev ./src/cli.ts",
     "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix"
   },
   "devDependencies": {
