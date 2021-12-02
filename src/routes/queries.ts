@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import qs from 'qs'
-import { getIndex, idToObjectID } from '../helpers'
+import { getIndex, idToObjectID, converStrToArray, getPageCount } from '../helpers'
 
 /**
  * Search and filter in multiple indexes
@@ -11,73 +11,84 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
   } = req
 
   try {
-    const { indexName, params } = requests[0]
-    const { query: queryParams, facets: facetsParams, facetFilters: facetFiltersParams } = qs.parse(params)
-
-    const searchExp = { AND: [] }
-
-    if (queryParams) {
-      searchExp.AND.push({ SEARCH: (queryParams as string).split(' ') })
-    }
-
-    if (facetFiltersParams) {
-      const facetFilters = JSON.parse(facetFiltersParams as string)
-      const orFilters = []
-      for (const filter of facetFilters) {
-        if (Array.isArray(filter)) {
-          searchExp.AND.push({ AND: filter })
-        } else {
-          orFilters.push(filter)
-        }
-      }
-      if (orFilters.length) {
-        searchExp.AND.push({ OR: orFilters })
-      }
-    }
-
-    let hits = []
-
     const db = await getIndex()
 
-    if (searchExp.AND.length) {
-      const result = await db.QUERY(searchExp, { DOCUMENTS: true })
-      hits = idToObjectID(result.RESULT.map((r) => r._doc))
-    } else {
-      const result = await db.ALL_DOCUMENTS()
-      hits = idToObjectID(result.map((r) => r._doc))
-    }
+    const results = []
 
-    const facets = {}
-    if (facetsParams) {
-      const facetsParamsArray = JSON.parse(facetsParams as string)
-      for (const facet of facetsParamsArray) {
-        const docs = await db.FACETS({ FIELD: facet })
-        if (docs?.length < 1) continue
+    for (const request of requests) {
+      const { indexName, params } = request
+      const {
+        query: queryParams,
+        facets: facetsParams,
+        facetFilters: facetFiltersParams,
+        page: pageParam,
+        hitsPerPage: hitsPerPageParams,
+      } = qs.parse(params)
 
-        facets[facet] = docs.reduce((aggr, cur) => {
-          aggr[cur.VALUE as string] = cur._id.length
+      const page = parseInt((pageParam as string) || `0`, 10)
+      const hitsPerPage = parseInt((hitsPerPageParams as string) || `1`, 10)
+      const searchExp = { AND: [] }
+
+      if (queryParams) {
+        searchExp.AND.push({ SEARCH: (queryParams as string).split(' ') })
+      }
+
+      if (facetFiltersParams) {
+        const facetFilters = JSON.parse(facetFiltersParams as string)
+        const orFilters = []
+        for (const filter of facetFilters) {
+          if (Array.isArray(filter)) {
+            searchExp.AND.push({ AND: filter })
+          } else {
+            orFilters.push(filter)
+          }
+        }
+        if (orFilters.length) {
+          searchExp.AND.push({ OR: orFilters })
+        }
+      }
+
+      let hits = []
+
+      if (searchExp.AND.length) {
+        const result = await db.QUERY(searchExp, {
+          DOCUMENTS: true,
+          PAGE: { NUMBER: page, SIZE: hitsPerPage },
+        })
+
+        hits = idToObjectID(result.RESULT.map((r) => r._doc))
+      } else {
+        const result = await db.ALL_DOCUMENTS(hitsPerPage)
+        hits = idToObjectID(result.map((r) => r._doc))
+      }
+
+      let facets = {}
+      if (facetsParams) {
+        const facetsParamsArray = converStrToArray(facetsParams as string)
+        const values = await db.FACETS({ FIELD: facetsParamsArray })
+
+        facets = values.reduce((aggr, cur) => {
+          const facet = cur.FIELD as string
+          aggr[facet] = { ...aggr[facet], [cur.VALUE as string]: cur._id.length }
           return aggr
         }, {})
       }
-    }
 
-    // Explicility close the underlying leveldown store
-    await db.INDEX.STORE.close()
+      const nbPages = getPageCount(hits.length, hitsPerPage)
 
-    const results = [
-      {
+      results.push({
         hits,
-        page: 0,
+        page,
         nbHits: hits.length,
-        nbPages: 1,
-        hitsPerPage: 20,
+        nbPages,
+        hitsPerPage,
         processingTimeMS: 1,
         query: queryParams,
         params,
         index: indexName,
         facets,
-      },
-    ]
+      })
+    }
 
     return res.status(200).send({ results })
   } catch (err) {

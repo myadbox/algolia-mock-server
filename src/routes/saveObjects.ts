@@ -22,6 +22,8 @@ export const saveObjects = async (req: Request, res: Response): Promise<Response
   } = req
 
   try {
+    const db = await getIndex()
+
     const puts = []
     const deletes = []
 
@@ -54,7 +56,6 @@ export const saveObjects = async (req: Request, res: Response): Promise<Response
       }
     }
 
-    const db = await getIndex()
     const response: SaveResponse = {
       wait: async (): Promise<SaveResponse> => this,
       taskID: getTaskID(),
@@ -68,9 +69,6 @@ export const saveObjects = async (req: Request, res: Response): Promise<Response
     if (deletes.length) {
       await db.DELETE(deletes)
     }
-
-    // Explicility close the underlying leveldown store
-    await db.INDEX.STORE.close()
 
     return res.status(200).send(response)
   } catch (err) {
