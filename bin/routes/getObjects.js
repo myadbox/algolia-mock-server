@@ -21,8 +21,6 @@ const getObjects = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     try {
         const db = yield (0, helpers_1.getIndex)();
         const result = yield db.DOCUMENTS(objectIDs);
-        // Explicility close the underlying leveldown store
-        yield db.INDEX.STORE.close();
         const documents = (0, helpers_1.idToObjectID)(result);
         return res.status(200).send(documents);
     }

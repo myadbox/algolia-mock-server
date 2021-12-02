@@ -34,6 +34,7 @@ const helpers_1 = require("../helpers");
 const saveObjects = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { body: { requests }, } = req;
     try {
+        const db = yield (0, helpers_1.getIndex)();
         const puts = [];
         const deletes = [];
         for (const request of requests) {
@@ -57,7 +58,6 @@ const saveObjects = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                     throw new Error(`Invalid action`);
             }
         }
-        const db = yield (0, helpers_1.getIndex)();
         const response = {
             wait: () => __awaiter(void 0, void 0, void 0, function* () { return this; }),
             taskID: (0, helpers_1.getTaskID)(),
@@ -69,8 +69,6 @@ const saveObjects = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         if (deletes.length) {
             yield db.DELETE(deletes);
         }
-        // Explicility close the underlying leveldown store
-        yield db.INDEX.STORE.close();
         return res.status(200).send(response);
     }
     catch (err) {

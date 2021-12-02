@@ -23,10 +23,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
+exports.getPageCount = exports.converStrToArray = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
+const level_party_1 = __importDefault(require("level-party"));
 const search_index_1 = __importDefault(require("search-index"));
 const getIndex = () => __awaiter(void 0, void 0, void 0, function* () {
-    return yield (0, search_index_1.default)({ name: `.algoliaMockServer` });
+    return yield (0, search_index_1.default)({ db: (0, level_party_1.default)(`.algoliaMockServer`, { valueEncoding: `json` }) });
 });
 exports.getIndex = getIndex;
 const idToObjectID = (documents) => {
@@ -38,4 +39,14 @@ const idToObjectID = (documents) => {
 exports.idToObjectID = idToObjectID;
 const getTaskID = () => Math.floor(Math.random() * 1000);
 exports.getTaskID = getTaskID;
+const converStrToArray = (params) => {
+    const isArray = /^\[(.*)\]$/.test(params);
+    return isArray ? JSON.parse(params) : [params];
+};
+exports.converStrToArray = converStrToArray;
+const getPageCount = (total, perPage) => {
+    const extra = total % perPage === 0 ? 0 : 1;
+    return Math.floor(total / perPage) + extra;
+};
+exports.getPageCount = getPageCount;
 //# sourceMappingURL=helpers.js.map

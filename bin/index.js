@@ -52,6 +52,7 @@ const init = () => {
     router.get(`/:indexName/:objectID`, routes_1.getObject);
     router.post(`/*/objects`, routes_1.getObjects);
     router.get(`/:indexName/task/:taskID`, routes_1.task);
+    router.post(`/:indexName/clear`, routes_1.clear);
     return app;
 };
 exports.default = init;

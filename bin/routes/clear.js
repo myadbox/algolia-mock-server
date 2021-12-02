@@ -9,23 +9,25 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getObject = void 0;
+exports.clear = void 0;
 const helpers_1 = require("../helpers");
 /**
- * Get an object from a specific index
- * index.getObject()
+ * Delete index's content
+ * index.clearObjects()
  */
-const getObject = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { params: { objectID }, } = req;
+const clear = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const db = yield (0, helpers_1.getIndex)();
-        const result = yield db.DOCUMENTS([objectID]);
-        const documents = (0, helpers_1.idToObjectID)(result);
-        return res.status(200).send(documents[0]);
+        // @ts-ignore
+        yield db.FLUSH();
+        return res.status(200).send({
+            updatedAt: new Date(),
+            taskID: (0, helpers_1.getTaskID)(),
+        });
     }
     catch (err) {
         return res.status(500).send({ message: err });
     }
 });
-exports.getObject = getObject;
-//# sourceMappingURL=getObject.js.map
+exports.clear = clear;
+//# sourceMappingURL=clear.js.map

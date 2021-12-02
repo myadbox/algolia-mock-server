@@ -16,4 +16,5 @@ __exportStar(require("./search"), exports);
 __exportStar(require("./queries"), exports);
 __exportStar(require("./saveObjects"), exports);
 __exportStar(require("./task"), exports);
+__exportStar(require("./clear"), exports);
 //# sourceMappingURL=index.js.map

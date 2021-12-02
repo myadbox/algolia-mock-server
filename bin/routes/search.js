@@ -20,8 +20,6 @@ const search = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const db = yield (0, helpers_1.getIndex)();
         const result = yield db.QUERY(query, { DOCUMENTS: true });
-        // Explicility close the underlying leveldown store
-        yield db.INDEX.STORE.close();
         const documents = (0, helpers_1.idToObjectID)(result.RESULT.map((r) => r._doc));
         return res.status(200).send({ message: documents });
     }

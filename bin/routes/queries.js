@@ -21,66 +21,68 @@ const helpers_1 = require("../helpers");
 const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { body: { requests }, } = req;
     try {
-        const { indexName, params } = requests[0];
-        const { query: queryParams, facets: facetsParams, facetFilters: facetFiltersParams } = qs_1.default.parse(params);
-        const searchExp = { AND: [] };
-        if (queryParams) {
-            searchExp.AND.push({ SEARCH: queryParams.split(' ') });
-        }
-        if (facetFiltersParams) {
-            const facetFilters = JSON.parse(facetFiltersParams);
-            const orFilters = [];
-            for (const filter of facetFilters) {
-                if (Array.isArray(filter)) {
-                    searchExp.AND.push({ AND: filter });
-                }
-                else {
-                    orFilters.push(filter);
-                }
-            }
-            if (orFilters.length) {
-                searchExp.AND.push({ OR: orFilters });
-            }
-        }
-        let hits = [];
         const db = yield (0, helpers_1.getIndex)();
-        if (searchExp.AND.length) {
-            const result = yield db.QUERY(searchExp, { DOCUMENTS: true });
-            hits = (0, helpers_1.idToObjectID)(result.RESULT.map((r) => r._doc));
-        }
-        else {
-            const result = yield db.ALL_DOCUMENTS();
-            hits = (0, helpers_1.idToObjectID)(result.map((r) => r._doc));
-        }
-        const facets = {};
-        if (facetsParams) {
-            const facetsParamsArray = JSON.parse(facetsParams);
-            for (const facet of facetsParamsArray) {
-                const docs = yield db.FACETS({ FIELD: facet });
-                if ((docs === null || docs === void 0 ? void 0 : docs.length) < 1)
-                    continue;
-                facets[facet] = docs.reduce((aggr, cur) => {
-                    aggr[cur.VALUE] = cur._id.length;
+        const results = [];
+        for (const request of requests) {
+            const { indexName, params } = request;
+            const { query: queryParams, facets: facetsParams, facetFilters: facetFiltersParams, page: pageParam, hitsPerPage: hitsPerPageParams, } = qs_1.default.parse(params);
+            const page = parseInt(pageParam || `0`, 10);
+            const hitsPerPage = parseInt(hitsPerPageParams || `1`, 10);
+            const searchExp = { AND: [] };
+            if (queryParams) {
+                searchExp.AND.push({ SEARCH: queryParams.split(' ') });
+            }
+            if (facetFiltersParams) {
+                const facetFilters = JSON.parse(facetFiltersParams);
+                const orFilters = [];
+                for (const filter of facetFilters) {
+                    if (Array.isArray(filter)) {
+                        searchExp.AND.push({ AND: filter });
+                    }
+                    else {
+                        orFilters.push(filter);
+                    }
+                }
+                if (orFilters.length) {
+                    searchExp.AND.push({ OR: orFilters });
+                }
+            }
+            let hits = [];
+            if (searchExp.AND.length) {
+                const result = yield db.QUERY(searchExp, {
+                    DOCUMENTS: true,
+                    PAGE: { NUMBER: page, SIZE: hitsPerPage },
+                });
+                hits = (0, helpers_1.idToObjectID)(result.RESULT.map((r) => r._doc));
+            }
+            else {
+                const result = yield db.ALL_DOCUMENTS(hitsPerPage);
+                hits = (0, helpers_1.idToObjectID)(result.map((r) => r._doc));
+            }
+            let facets = {};
+            if (facetsParams) {
+                const facetsParamsArray = (0, helpers_1.converStrToArray)(facetsParams);
+                const values = yield db.FACETS({ FIELD: facetsParamsArray });
+                facets = values.reduce((aggr, cur) => {
+                    const facet = cur.FIELD;
+                    aggr[facet] = Object.assign(Object.assign({}, aggr[facet]), { [cur.VALUE]: cur._id.length });
                     return aggr;
                 }, {});
             }
-        }
-        // Explicility close the underlying leveldown store
-        yield db.INDEX.STORE.close();
-        const results = [
-            {
+            const nbPages = (0, helpers_1.getPageCount)(hits.length, hitsPerPage);
+            results.push({
                 hits,
-                page: 0,
+                page,
                 nbHits: hits.length,
-                nbPages: 1,
-                hitsPerPage: 20,
+                nbPages,
+                hitsPerPage,
                 processingTimeMS: 1,
                 query: queryParams,
                 params,
                 index: indexName,
                 facets,
-            },
-        ];
+            });
+        }
         return res.status(200).send({ results });
     }
     catch (err) {
