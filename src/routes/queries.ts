@@ -35,16 +35,16 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
 
       if (facetFiltersParams) {
         const facetFilters = JSON.parse(facetFiltersParams as string)
-        const orFilters = []
+        const andFilters = []
         for (const filter of facetFilters) {
           if (Array.isArray(filter)) {
-            searchExp.AND.push({ AND: filter })
+            searchExp.AND.push({ OR: filter })
           } else {
-            orFilters.push(filter)
+            andFilters.push(filter)
           }
         }
-        if (orFilters.length) {
-          searchExp.AND.push({ OR: orFilters })
+        if (andFilters.length) {
+          searchExp.AND.push({ AND: andFilters })
         }
       }
 

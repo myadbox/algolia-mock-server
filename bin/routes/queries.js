@@ -34,17 +34,17 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             }
             if (facetFiltersParams) {
                 const facetFilters = JSON.parse(facetFiltersParams);
-                const orFilters = [];
+                const andFilters = [];
                 for (const filter of facetFilters) {
                     if (Array.isArray(filter)) {
-                        searchExp.AND.push({ AND: filter });
+                        searchExp.AND.push({ OR: filter });
                     }
                     else {
-                        orFilters.push(filter);
+                        andFilters.push(filter);
                     }
                 }
-                if (orFilters.length) {
-                    searchExp.AND.push({ OR: orFilters });
+                if (andFilters.length) {
+                    searchExp.AND.push({ AND: andFilters });
                 }
             }
             let hits = [];
