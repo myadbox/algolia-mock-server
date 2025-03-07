@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node-dev ./src/cli.ts",
-    "lint": "eslint '*/**/*.{js,ts,tsx}' --quiet --fix"
+    "lint": "eslint 'src/**/*.{js,ts,tsx}' --quiet --fix"
   },
   "devDependencies": {
     "@types/cors": "^2.8.12",
