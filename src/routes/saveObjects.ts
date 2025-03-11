@@ -34,6 +34,7 @@ export const saveObjects = async (req: Request, res: Response): Promise<Response
       } = request
 
       switch (action) {
+        case `addObject`:
         case `updateObject`:
           puts.push({ ...rest, _id: objectID })
           break
@@ -52,7 +53,8 @@ export const saveObjects = async (req: Request, res: Response): Promise<Response
           break
 
         default:
-          throw new Error(`Invalid action`)
+          console.error(`Invalid action: ${action}`)
+          throw new Error(`Invalid action: ${action}`)
       }
     }
 

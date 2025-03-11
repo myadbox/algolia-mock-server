@@ -1,6 +1,5 @@
 import { Request, Response } from 'express'
-import qs from 'qs'
-import { getIndex, idToObjectID, converStrToArray, getPageCount } from '../helpers'
+import { getIndex, getPageCount, idToObjectID } from '../helpers'
 
 /**
  * Search and filter in multiple indexes
@@ -16,14 +15,14 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
     const results = []
 
     for (const request of requests) {
-      const { indexName, params } = request
       const {
+        indexName,
         query: queryParams,
         facets: facetsParams,
         facetFilters: facetFiltersParams,
         page: pageParam,
         hitsPerPage: hitsPerPageParams,
-      } = qs.parse(params)
+      } = request
 
       const page = parseInt((pageParam as string) || `0`, 10)
       const hitsPerPage = parseInt((hitsPerPageParams as string) || `1`, 10)
@@ -34,9 +33,8 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
       }
 
       if (facetFiltersParams) {
-        const facetFilters = JSON.parse(facetFiltersParams as string)
         const andFilters = []
-        for (const filter of facetFilters) {
+        for (const filter of facetFiltersParams) {
           if (Array.isArray(filter)) {
             searchExp.AND.push({ OR: filter })
           } else {
@@ -64,8 +62,7 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
 
       let facets = {}
       if (facetsParams) {
-        const facetsParamsArray = converStrToArray(facetsParams as string)
-        const values = await db.FACETS({ FIELD: facetsParamsArray })
+        const values = await db.FACETS({ FIELD: facetsParams })
 
         facets = values.reduce((aggr, cur) => {
           const facet = cur.FIELD as string
@@ -84,7 +81,6 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
         hitsPerPage,
         processingTimeMS: 1,
         query: queryParams,
-        params,
         index: indexName,
         facets,
       })
@@ -92,6 +88,7 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
 
     return res.status(200).send({ results })
   } catch (err) {
-    return res.status(500).send({ message: err })
+    console.error(`Error in queries: ${JSON.stringify(err, null, 2)}`)
+    return res.status(500).send({ message: JSON.stringify(err) })
   }
 }

@@ -1,6 +1,6 @@
 # Algolia Mock Server
 
-A mock server to mimick Algolia's search index, primarily for e2e testing purposes.
+A mock server to mimick Algolia's v5 search index, primarily for e2e testing purposes.
 
 ## API endpoints currently covered
 
