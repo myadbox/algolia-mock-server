@@ -49,8 +49,8 @@ jobs:
           # Optional: Trigger when specific user is assigned to an issue
           # assignee_trigger: "claude-bot"
           
-          # Optional: Allow Claude to run specific commands
-          # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
+          # Allow Claude to run npm scripts appropriate for CI/CD
+          allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run lint)"
           
           # Optional: Add custom instructions for Claude to customize its behavior for your project
           # custom_instructions: |
