@@ -11,10 +11,22 @@ const parseNumericFilter = (filterString: string) => {
   }
 
   const [, field, operator, value] = match
-  const numericValue = parseFloat(value.trim())
+  const trimmedValue = value.trim()
 
   // Handle null values by using a sentinel value (Number.MAX_SAFE_INTEGER)
-  const processedValue = value.trim() === 'null' ? Number.MAX_SAFE_INTEGER.toString() : numericValue.toString()
+  let processedValue: string
+  if (trimmedValue === 'null') {
+    processedValue = Number.MAX_SAFE_INTEGER.toString()
+  } else {
+    const numericValue = parseFloat(trimmedValue)
+    if (isNaN(numericValue)) {
+      throw new Error(`Invalid numeric value: ${trimmedValue}`)
+    }
+    processedValue = numericValue.toString()
+  }
+
+  // For strict inequalities with null values, we need special handling
+  const isNullValue = trimmedValue === 'null'
 
   switch (operator) {
     case '>=':
@@ -28,16 +40,36 @@ const parseNumericFilter = (filterString: string) => {
         VALUE: { GTE: Number.MIN_SAFE_INTEGER.toString(), LTE: processedValue },
       }
     case '>':
-      // Simulate > by using a slightly higher value
-      return {
-        FIELD: field.trim(),
-        VALUE: { GTE: (numericValue + 0.000001).toString(), LTE: Number.MAX_SAFE_INTEGER.toString() },
+      if (isNullValue) {
+        // For null values, > null should return no results (nothing is greater than null)
+        return {
+          FIELD: field.trim(),
+          VALUE: { GTE: (Number.MAX_SAFE_INTEGER + 1).toString(), LTE: Number.MAX_SAFE_INTEGER.toString() },
+        }
+      } else {
+        // Use next integer for integer values, or add small increment for floats
+        const numericValue = parseFloat(trimmedValue)
+        const nextValue = Number.isInteger(numericValue) ? numericValue + 1 : numericValue + Number.EPSILON
+        return {
+          FIELD: field.trim(),
+          VALUE: { GTE: nextValue.toString(), LTE: Number.MAX_SAFE_INTEGER.toString() },
+        }
       }
     case '<':
-      // Simulate < by using a slightly lower value
-      return {
-        FIELD: field.trim(),
-        VALUE: { GTE: Number.MIN_SAFE_INTEGER.toString(), LTE: (numericValue - 0.000001).toString() },
+      if (isNullValue) {
+        // All values are less than null (using our sentinel system)
+        return {
+          FIELD: field.trim(),
+          VALUE: { GTE: Number.MIN_SAFE_INTEGER.toString(), LTE: (Number.MAX_SAFE_INTEGER - 1).toString() },
+        }
+      } else {
+        // Use previous integer for integer values, or subtract small increment for floats
+        const numericValue = parseFloat(trimmedValue)
+        const prevValue = Number.isInteger(numericValue) ? numericValue - 1 : numericValue - Number.EPSILON
+        return {
+          FIELD: field.trim(),
+          VALUE: { GTE: Number.MIN_SAFE_INTEGER.toString(), LTE: prevValue.toString() },
+        }
       }
     case '=':
       return {
@@ -52,7 +84,7 @@ const parseNumericFilter = (filterString: string) => {
 /**
  * Parse Algolia numericFilters into search-index format
  */
-const parseNumericFilters = (numericFilters: any[]) => {
+const parseNumericFilters = (numericFilters: (string | string[])[]) => {
   const filters = []
 
   for (const filter of numericFilters) {
