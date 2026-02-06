@@ -84,6 +84,7 @@ The mock server supports a subset of [Algolia's filter syntax](https://www.algol
 
 - ✅ **Facet filters**: `field:value` (e.g., `type:IMAGE`)
 - ✅ **AND operator**: Combine multiple conditions (e.g., `type:IMAGE AND tags:Launch`)
+- ✅ **NOT operator**: Exclude documents (e.g., `NOT tags:Derived`)
 - ✅ **Parentheses grouping**: Group conditions (e.g., `(field1:value1)`)
 - ✅ **Quoted values**: Handle spaces and special characters (e.g., `tags:"Launch Event"`)
 - ✅ **ObjectID filtering**: Filter by objectID (e.g., `objectID:abc123`)
@@ -93,7 +94,7 @@ The mock server supports a subset of [Algolia's filter syntax](https://www.algol
 ```json
 {
   "query": "",
-  "filters": "type:IMAGE AND (tags:\"Launch\") AND objectID:a946ed4f1f88da82f41acc96"
+  "filters": "type:IMAGE AND NOT tags:Derived AND objectID:a946ed4f1f88da82f41acc96"
 }
 ```
 
@@ -101,8 +102,7 @@ The mock server supports a subset of [Algolia's filter syntax](https://www.algol
 
 The following Algolia filter features are **not yet implemented**:
 
-- ❌ **OR operator**: `field1:value1 OR field1:value2`
-- ❌ **NOT operator**: `NOT field:value`
+- ❌ **OR operator in filters**: `field1:value1 OR field1:value2` (use facetFilters array format instead)
 - ❌ **Numeric comparisons**: `price > 100`, `price >= 10`, `price < 50`
 - ❌ **Numeric ranges**: `price:10 TO 100`
 - ❌ **Boolean filters**: `available:true`, `inStock:false`

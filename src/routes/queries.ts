@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import { getIndex, getPageCount, idToObjectID, buildSearchExpression } from '../helpers'
+import { getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFilters } from '../helpers'
 
 /**
  * Search and filter in multiple indexes
@@ -28,8 +28,8 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
       const page = parseInt((pageParam as string) || `0`, 10)
       const hitsPerPage = parseInt((hitsPerPageParams as string) || `1`, 10)
 
-      // Build search expression using shared helper
-      const { searchExp, objectIDs: objectIDsToMatch } = buildSearchExpression({
+      // Build search expression and extract post-filters
+      const { searchExp, objectIDs, notFilters } = buildSearchExpression({
         query: queryParams,
         filters: filtersParams,
         facetFilters: facetFiltersParams,
@@ -49,10 +49,8 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
         hits = idToObjectID(result.map((r) => r._doc))
       }
 
-      // Post-filter by objectID if specified
-      if (objectIDsToMatch.length > 0) {
-        hits = hits.filter((hit: { objectID: string }) => objectIDsToMatch.includes(hit.objectID))
-      }
+      // Apply post-filters (objectID, NOT filters)
+      hits = applyPostFilters(hits, objectIDs, notFilters)
 
       let facets = {}
       if (facetsParams) {

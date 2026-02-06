@@ -23,8 +23,8 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             const { indexName, query: queryParams, facets: facetsParams, facetFilters: facetFiltersParams, filters: filtersParams, page: pageParam, hitsPerPage: hitsPerPageParams, } = request;
             const page = parseInt(pageParam || `0`, 10);
             const hitsPerPage = parseInt(hitsPerPageParams || `1`, 10);
-            // Build search expression using shared helper
-            const { searchExp, objectIDs: objectIDsToMatch } = (0, helpers_1.buildSearchExpression)({
+            // Build search expression and extract post-filters
+            const { searchExp, objectIDs, notFilters } = (0, helpers_1.buildSearchExpression)({
                 query: queryParams,
                 filters: filtersParams,
                 facetFilters: facetFiltersParams,
@@ -41,10 +41,8 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 const result = yield db.ALL_DOCUMENTS(hitsPerPage);
                 hits = (0, helpers_1.idToObjectID)(result.map((r) => r._doc));
             }
-            // Post-filter by objectID if specified
-            if (objectIDsToMatch.length > 0) {
-                hits = hits.filter((hit) => objectIDsToMatch.includes(hit.objectID));
-            }
+            // Apply post-filters (objectID, NOT filters)
+            hits = (0, helpers_1.applyPostFilters)(hits, objectIDs, notFilters);
             let facets = {};
             if (facetsParams) {
                 const values = yield db.FACETS({ FIELD: facetsParams });

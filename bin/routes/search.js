@@ -20,8 +20,8 @@ const search = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const db = yield (0, helpers_1.getIndex)();
         const hitsPerPage = parseInt(hitsPerPageParam || `20`, 10);
-        // Build search expression and extract objectIDs
-        const { searchExp, objectIDs: objectIDsToMatch } = (0, helpers_1.buildSearchExpression)({
+        // Build search expression and extract post-filters
+        const { searchExp, objectIDs, notFilters } = (0, helpers_1.buildSearchExpression)({
             query,
             filters,
             facetFilters,
@@ -35,13 +35,9 @@ const search = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             const allDocs = yield db.ALL_DOCUMENTS(hitsPerPage);
             result = { RESULT: allDocs.map((doc) => ({ _doc: doc })) };
         }
-        // Extract hits
+        // Extract hits and apply post-filters (objectID, NOT filters)
         let hits = (0, helpers_1.idToObjectID)(result.RESULT.map((r) => r._doc));
-        // Post-filter by objectID if specified
-        // Note: search-index can't filter by _id, so we filter results after the query
-        if (objectIDsToMatch.length > 0) {
-            hits = hits.filter((hit) => objectIDsToMatch.includes(hit.objectID));
-        }
+        hits = (0, helpers_1.applyPostFilters)(hits, objectIDs, notFilters);
         const nbPages = (0, helpers_1.getPageCount)(hits.length, hitsPerPage);
         return res.status(200).send({
             hits,

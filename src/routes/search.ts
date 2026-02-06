@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import { getIndex, getPageCount, idToObjectID, buildSearchExpression } from '../helpers'
+import { getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFilters } from '../helpers'
 
 /**
  * Search in a single index
@@ -15,8 +15,8 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
     const db = await getIndex()
     const hitsPerPage = parseInt((hitsPerPageParam as string) || `20`, 10)
 
-    // Build search expression and extract objectIDs
-    const { searchExp, objectIDs: objectIDsToMatch } = buildSearchExpression({
+    // Build search expression and extract post-filters
+    const { searchExp, objectIDs, notFilters } = buildSearchExpression({
       query,
       filters,
       facetFilters,
@@ -31,14 +31,9 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
       result = { RESULT: allDocs.map((doc: unknown) => ({ _doc: doc })) }
     }
 
-    // Extract hits
+    // Extract hits and apply post-filters (objectID, NOT filters)
     let hits = idToObjectID(result.RESULT.map((r: { _doc: unknown }) => r._doc))
-
-    // Post-filter by objectID if specified
-    // Note: search-index can't filter by _id, so we filter results after the query
-    if (objectIDsToMatch.length > 0) {
-      hits = hits.filter((hit: { objectID: string }) => objectIDsToMatch.includes(hit.objectID))
-    }
+    hits = applyPostFilters(hits, objectIDs, notFilters)
 
     const nbPages = getPageCount(hits.length, hitsPerPage)
 
