@@ -1,5 +1,12 @@
 import { Request, Response } from 'express'
-import { getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFilters } from '../helpers'
+import {
+  getIndex,
+  getPageCount,
+  idToObjectID,
+  buildSearchExpression,
+  applyPostFilters,
+  computeFacetsFromHits,
+} from '../helpers'
 
 /**
  * Search and filter in multiple indexes
@@ -49,18 +56,14 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
         hits = idToObjectID(result.map((r) => r._doc))
       }
 
-      // Apply post-filters (objectID, NOT filters)
+      // Apply post-filters (objectID and NOT filters)
       hits = applyPostFilters(hits, objectIDs, notFilters)
 
+      // Compute facets from filtered hits
       let facets = {}
       if (facetsParams) {
-        const values = await db.FACETS({ FIELD: facetsParams })
-
-        facets = values.reduce((aggr, cur) => {
-          const facet = cur.FIELD as string
-          aggr[facet] = { ...aggr[facet], [cur.VALUE as string]: cur._id.length }
-          return aggr
-        }, {})
+        const facetFields = Array.isArray(facetsParams) ? facetsParams : [facetsParams]
+        facets = computeFacetsFromHits(hits, facetFields)
       }
 
       const nbPages = getPageCount(hits.length, hitsPerPage)

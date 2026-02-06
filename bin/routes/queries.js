@@ -41,16 +41,13 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 const result = yield db.ALL_DOCUMENTS(hitsPerPage);
                 hits = (0, helpers_1.idToObjectID)(result.map((r) => r._doc));
             }
-            // Apply post-filters (objectID, NOT filters)
+            // Apply post-filters (objectID and NOT filters)
             hits = (0, helpers_1.applyPostFilters)(hits, objectIDs, notFilters);
+            // Compute facets from filtered hits
             let facets = {};
             if (facetsParams) {
-                const values = yield db.FACETS({ FIELD: facetsParams });
-                facets = values.reduce((aggr, cur) => {
-                    const facet = cur.FIELD;
-                    aggr[facet] = Object.assign(Object.assign({}, aggr[facet]), { [cur.VALUE]: cur._id.length });
-                    return aggr;
-                }, {});
+                const facetFields = Array.isArray(facetsParams) ? facetsParams : [facetsParams];
+                facets = (0, helpers_1.computeFacetsFromHits)(hits, facetFields);
             }
             const nbPages = (0, helpers_1.getPageCount)(hits.length, hitsPerPage);
             results.push({

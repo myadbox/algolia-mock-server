@@ -17,6 +17,39 @@ export const getPageCount = (total: number, perPage: number): number => {
 }
 
 /**
+ * Compute facets from filtered hits
+ * Returns facet counts for the specified fields
+ */
+export const computeFacetsFromHits = (
+  hits: Array<Record<string, unknown>>,
+  facetFields: string[],
+): Record<string, Record<string, number>> => {
+  const facets: Record<string, Record<string, number>> = {}
+
+  for (const field of facetFields) {
+    facets[field] = {}
+
+    for (const hit of hits) {
+      const value = hit[field]
+
+      if (Array.isArray(value)) {
+        // Handle array fields (like tags)
+        for (const item of value) {
+          const key = String(item).toLowerCase()
+          facets[field][key] = (facets[field][key] || 0) + 1
+        }
+      } else if (value !== undefined && value !== null) {
+        // Handle scalar fields (like type)
+        const key = String(value).toLowerCase()
+        facets[field][key] = (facets[field][key] || 0) + 1
+      }
+    }
+  }
+
+  return facets
+}
+
+/**
  * Apply post-filters (objectID and NOT filters) to hits
  * Returns filtered hits array
  */

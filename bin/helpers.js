@@ -23,7 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildSearchExpression = exports.applyPostFilters = exports.getPageCount = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
+exports.buildSearchExpression = exports.applyPostFilters = exports.computeFacetsFromHits = exports.getPageCount = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
 const level_party_1 = __importDefault(require("level-party"));
 const search_index_1 = __importDefault(require("search-index"));
 const getIndex = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -44,6 +44,33 @@ const getPageCount = (total, perPage) => {
     return Math.floor(total / perPage) + extra;
 };
 exports.getPageCount = getPageCount;
+/**
+ * Compute facets from filtered hits
+ * Returns facet counts for the specified fields
+ */
+const computeFacetsFromHits = (hits, facetFields) => {
+    const facets = {};
+    for (const field of facetFields) {
+        facets[field] = {};
+        for (const hit of hits) {
+            const value = hit[field];
+            if (Array.isArray(value)) {
+                // Handle array fields (like tags)
+                for (const item of value) {
+                    const key = String(item).toLowerCase();
+                    facets[field][key] = (facets[field][key] || 0) + 1;
+                }
+            }
+            else if (value !== undefined && value !== null) {
+                // Handle scalar fields (like type)
+                const key = String(value).toLowerCase();
+                facets[field][key] = (facets[field][key] || 0) + 1;
+            }
+        }
+    }
+    return facets;
+};
+exports.computeFacetsFromHits = computeFacetsFromHits;
 /**
  * Apply post-filters (objectID and NOT filters) to hits
  * Returns filtered hits array
