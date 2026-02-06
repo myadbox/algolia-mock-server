@@ -23,7 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPageCount = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
+exports.parseFilters = exports.getPageCount = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
 const level_party_1 = __importDefault(require("level-party"));
 const search_index_1 = __importDefault(require("search-index"));
 const getIndex = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -44,4 +44,35 @@ const getPageCount = (total, perPage) => {
     return Math.floor(total / perPage) + extra;
 };
 exports.getPageCount = getPageCount;
+/**
+ * Parse Algolia filter string into filter parts and objectIDs
+ * Returns { filterParts, objectIDs }
+ */
+const parseFilters = (filterString) => {
+    if (!filterString) {
+        return { filterParts: [], objectIDs: [] };
+    }
+    // Extract objectIDs (search-index can't filter by _id, so we handle it separately)
+    const objectIDs = [];
+    const objectIDRegex = /objectID:["']?([a-zA-Z0-9_-]+)["']?/gi;
+    for (const match of filterString.matchAll(objectIDRegex)) {
+        objectIDs.push(match[1]);
+    }
+    // Remove objectID filters from the string
+    const withoutObjectIDs = filterString
+        .replace(/\s*AND\s+objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
+        .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?\s*AND\s*/gi, '')
+        .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
+        .trim();
+    // Split by AND, remove parentheses and quotes
+    const filterParts = withoutObjectIDs
+        .split(/\s+AND\s+/i)
+        .map((part) => part
+        .trim()
+        .replace(/^\(|\)$/g, '')
+        .replace(/["']/g, ''))
+        .filter((part) => part.length > 0);
+    return { filterParts, objectIDs };
+};
+exports.parseFilters = parseFilters;
 //# sourceMappingURL=helpers.js.map

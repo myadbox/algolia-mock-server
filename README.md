@@ -75,3 +75,37 @@ A mock server to mimick Algolia's v5 search index, primarily for e2e testing pur
 
 - **API Endpoint:** `/1/indexes/:indexName/task/:taskID`
 - **algoliasearch JS package:** `index.[method]().wait()`
+
+## Filter Support
+
+The mock server supports a subset of [Algolia's filter syntax](https://www.algolia.com/doc/api-reference/api-parameters/filters) for the `filters` parameter in search requests.
+
+### Supported Filter Features
+
+- ✅ **Facet filters**: `field:value` (e.g., `type:IMAGE`)
+- ✅ **AND operator**: Combine multiple conditions (e.g., `type:IMAGE AND tags:Launch`)
+- ✅ **Parentheses grouping**: Group conditions (e.g., `(field1:value1)`)
+- ✅ **Quoted values**: Handle spaces and special characters (e.g., `tags:"Launch Event"`)
+- ✅ **ObjectID filtering**: Filter by objectID (e.g., `objectID:abc123`)
+
+**Example:**
+
+```json
+{
+  "query": "",
+  "filters": "type:IMAGE AND (tags:\"Launch\") AND objectID:a946ed4f1f88da82f41acc96"
+}
+```
+
+### Unsupported Filter Features
+
+The following Algolia filter features are **not yet implemented**:
+
+- ❌ **OR operator**: `field1:value1 OR field1:value2`
+- ❌ **NOT operator**: `NOT field:value`
+- ❌ **Numeric comparisons**: `price > 100`, `price >= 10`, `price < 50`
+- ❌ **Numeric ranges**: `price:10 TO 100`
+- ❌ **Boolean filters**: `available:true`, `inStock:false`
+- ❌ **Tag filters**: `_tags:published`
+
+> **Note:** The mock server is designed for e2e testing with common filter patterns. If we need additional filter features, we can add them as needed.
