@@ -20,29 +20,17 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         const db = yield (0, helpers_1.getIndex)();
         const results = [];
         for (const request of requests) {
-            const { indexName, query: queryParams, facets: facetsParams, facetFilters: facetFiltersParams, page: pageParam, hitsPerPage: hitsPerPageParams, } = request;
+            const { indexName, query: queryParams, facets: facetsParams, facetFilters: facetFiltersParams, filters: filtersParams, page: pageParam, hitsPerPage: hitsPerPageParams, } = request;
             const page = parseInt(pageParam || `0`, 10);
             const hitsPerPage = parseInt(hitsPerPageParams || `1`, 10);
-            const searchExp = { AND: [] };
-            if (queryParams) {
-                searchExp.AND.push({ SEARCH: queryParams.split(' ') });
-            }
-            if (facetFiltersParams) {
-                const andFilters = [];
-                for (const filter of facetFiltersParams) {
-                    if (Array.isArray(filter)) {
-                        searchExp.AND.push({ OR: filter });
-                    }
-                    else {
-                        andFilters.push(filter);
-                    }
-                }
-                if (andFilters.length) {
-                    searchExp.AND.push({ AND: andFilters });
-                }
-            }
+            // Build search expression using shared helper
+            const { searchExp, objectIDs: objectIDsToMatch } = (0, helpers_1.buildSearchExpression)({
+                query: queryParams,
+                filters: filtersParams,
+                facetFilters: facetFiltersParams,
+            });
             let hits = [];
-            if (searchExp.AND.length) {
+            if (searchExp.AND.length > 0) {
                 const result = yield db.QUERY(searchExp, {
                     DOCUMENTS: true,
                     PAGE: { NUMBER: page, SIZE: hitsPerPage },
@@ -52,6 +40,10 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             else {
                 const result = yield db.ALL_DOCUMENTS(hitsPerPage);
                 hits = (0, helpers_1.idToObjectID)(result.map((r) => r._doc));
+            }
+            // Post-filter by objectID if specified
+            if (objectIDsToMatch.length > 0) {
+                hits = hits.filter((hit) => objectIDsToMatch.includes(hit.objectID));
             }
             let facets = {};
             if (facetsParams) {

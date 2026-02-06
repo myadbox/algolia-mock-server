@@ -16,22 +16,16 @@ const helpers_1 = require("../helpers");
  * index.search()
  */
 const search = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { params: { indexName }, body: { query, filters, hitsPerPage: hitsPerPageParam }, } = req;
+    const { params: { indexName }, body: { query, filters, facetFilters, hitsPerPage: hitsPerPageParam }, } = req;
     try {
         const db = yield (0, helpers_1.getIndex)();
         const hitsPerPage = parseInt(hitsPerPageParam || `20`, 10);
-        // Build search expression
-        const searchExp = { AND: [] };
-        // Add text query if present
-        if (query) {
-            searchExp.AND.push({ SEARCH: query.split(' ') });
-        }
-        // Parse filters (extracts objectIDs and remaining filter parts)
-        const { filterParts, objectIDs: objectIDsToMatch } = (0, helpers_1.parseFilters)(filters);
-        // Add filter parts to search expression
-        if (filterParts.length > 0) {
-            searchExp.AND.push({ AND: filterParts });
-        }
+        // Build search expression and extract objectIDs
+        const { searchExp, objectIDs: objectIDsToMatch } = (0, helpers_1.buildSearchExpression)({
+            query,
+            filters,
+            facetFilters,
+        });
         // Execute query
         let result;
         if (searchExp.AND.length > 0) {
@@ -44,6 +38,7 @@ const search = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         // Extract hits
         let hits = (0, helpers_1.idToObjectID)(result.RESULT.map((r) => r._doc));
         // Post-filter by objectID if specified
+        // Note: search-index can't filter by _id, so we filter results after the query
         if (objectIDsToMatch.length > 0) {
             hits = hits.filter((hit) => objectIDsToMatch.includes(hit.objectID));
         }

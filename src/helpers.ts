@@ -16,34 +16,83 @@ export const getPageCount = (total: number, perPage: number): number => {
   return Math.floor(total / perPage) + extra
 }
 
+type SearchToken = string | { SEARCH: string[] } | { AND: string[] } | { OR: string[] }
+
+interface SearchExpression {
+  AND: SearchToken[]
+}
+
 /**
- * Parse Algolia filter string into filter parts and objectIDs
- * Returns { filterParts, objectIDs }
- *
- * Note: objectID filters cannot be part of the search-index query because
- * search-index doesn't support filtering by document _id. We extract objectID
- * filters here and apply them as post-filters after the search.
+ * Build search expression from query and filters
+ * Handles both string filters and array facetFilters
+ * Returns { searchExp, objectIDs }
  */
-export const parseFilters = (filterString: string) => {
+export const buildSearchExpression = (params: {
+  query?: string
+  filters?: string
+  facetFilters?: unknown[]
+}): { searchExp: SearchExpression; objectIDs: string[] } => {
+  const { query, filters, facetFilters } = params
+  const searchExp: SearchExpression = { AND: [] }
+  let objectIDs: string[] = []
+
+  // Add text query if present
+  if (query) {
+    searchExp.AND.push({ SEARCH: (query as string).split(' ') })
+  }
+
+  // Handle string filters (e.g., "type:IMAGE AND tags:Launch")
+  if (filters) {
+    const parsed = parseStringFilters(filters as string)
+    objectIDs = parsed.objectIDs
+
+    if (parsed.filterParts.length > 0) {
+      searchExp.AND.push({ AND: parsed.filterParts })
+    }
+  }
+
+  // Handle array facetFilters (e.g., [["type:IMAGE"], ["tags:Launch"]])
+  if (facetFilters) {
+    const andFilters: string[] = []
+    for (const filter of facetFilters) {
+      if (Array.isArray(filter)) {
+        searchExp.AND.push({ OR: filter })
+      } else {
+        andFilters.push(filter as string)
+      }
+    }
+    if (andFilters.length > 0) {
+      searchExp.AND.push({ AND: andFilters })
+    }
+  }
+
+  return { searchExp, objectIDs }
+}
+
+/**
+ * Parse string filters into filter parts and objectIDs
+ * Note: objectID filters are extracted separately due to search-index limitation
+ */
+const parseStringFilters = (filterString: string) => {
   if (!filterString) {
     return { filterParts: [], objectIDs: [] }
   }
 
-  // Extract objectIDs - must be handled separately (search-index limitation)
+  // Extract objectIDs
   const objectIDs: string[] = []
   const objectIDRegex = /objectID:["']?([a-zA-Z0-9_-]+)["']?/gi
   for (const match of filterString.matchAll(objectIDRegex)) {
     objectIDs.push(match[1])
   }
 
-  // Remove objectID filters from the string
+  // Remove objectID filters
   const withoutObjectIDs = filterString
     .replace(/\s*AND\s+objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
     .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?\s*AND\s*/gi, '')
     .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
     .trim()
 
-  // Split by AND, remove parentheses and quotes
+  // Split by AND, clean up
   const filterParts = withoutObjectIDs
     .split(/\s+AND\s+/i)
     .map((part) =>

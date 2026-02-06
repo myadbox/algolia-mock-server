@@ -1,9 +1,5 @@
 import { Request, Response } from 'express'
-import { getIndex, getPageCount, idToObjectID, parseFilters } from '../helpers'
-
-interface SearchExpression {
-  AND: Array<string | { SEARCH: string[] } | { AND: string[] }>
-}
+import { getIndex, getPageCount, idToObjectID, buildSearchExpression } from '../helpers'
 
 /**
  * Search in a single index
@@ -12,28 +8,19 @@ interface SearchExpression {
 export const search = async (req: Request, res: Response): Promise<Response> => {
   const {
     params: { indexName },
-    body: { query, filters, hitsPerPage: hitsPerPageParam },
+    body: { query, filters, facetFilters, hitsPerPage: hitsPerPageParam },
   } = req
 
   try {
     const db = await getIndex()
     const hitsPerPage = parseInt((hitsPerPageParam as string) || `20`, 10)
 
-    // Build search expression
-    const searchExp: SearchExpression = { AND: [] }
-
-    // Add text query if present
-    if (query) {
-      searchExp.AND.push({ SEARCH: (query as string).split(' ') })
-    }
-
-    // Parse filters (extracts objectIDs and remaining filter parts)
-    const { filterParts, objectIDs: objectIDsToMatch } = parseFilters(filters)
-
-    // Add filter parts to search expression
-    if (filterParts.length > 0) {
-      searchExp.AND.push({ AND: filterParts })
-    }
+    // Build search expression and extract objectIDs
+    const { searchExp, objectIDs: objectIDsToMatch } = buildSearchExpression({
+      query,
+      filters,
+      facetFilters,
+    })
 
     // Execute query
     let result

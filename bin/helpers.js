@@ -23,7 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseFilters = exports.getPageCount = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
+exports.buildSearchExpression = exports.getPageCount = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
 const level_party_1 = __importDefault(require("level-party"));
 const search_index_1 = __importDefault(require("search-index"));
 const getIndex = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -45,26 +45,65 @@ const getPageCount = (total, perPage) => {
 };
 exports.getPageCount = getPageCount;
 /**
- * Parse Algolia filter string into filter parts and objectIDs
- * Returns { filterParts, objectIDs }
+ * Build search expression from query and filters
+ * Handles both string filters and array facetFilters
+ * Returns { searchExp, objectIDs }
  */
-const parseFilters = (filterString) => {
+const buildSearchExpression = (params) => {
+    const { query, filters, facetFilters } = params;
+    const searchExp = { AND: [] };
+    let objectIDs = [];
+    // Add text query if present
+    if (query) {
+        searchExp.AND.push({ SEARCH: query.split(' ') });
+    }
+    // Handle string filters (e.g., "type:IMAGE AND tags:Launch")
+    if (filters) {
+        const parsed = parseStringFilters(filters);
+        objectIDs = parsed.objectIDs;
+        if (parsed.filterParts.length > 0) {
+            searchExp.AND.push({ AND: parsed.filterParts });
+        }
+    }
+    // Handle array facetFilters (e.g., [["type:IMAGE"], ["tags:Launch"]])
+    if (facetFilters) {
+        const andFilters = [];
+        for (const filter of facetFilters) {
+            if (Array.isArray(filter)) {
+                searchExp.AND.push({ OR: filter });
+            }
+            else {
+                andFilters.push(filter);
+            }
+        }
+        if (andFilters.length > 0) {
+            searchExp.AND.push({ AND: andFilters });
+        }
+    }
+    return { searchExp, objectIDs };
+};
+exports.buildSearchExpression = buildSearchExpression;
+/**
+ * Parse string filters into filter parts and objectIDs
+ * Note: objectID filters are extracted separately due to search-index limitation
+ */
+const parseStringFilters = (filterString) => {
     if (!filterString) {
         return { filterParts: [], objectIDs: [] };
     }
-    // Extract objectIDs (search-index can't filter by _id, so we handle it separately)
+    // Extract objectIDs
     const objectIDs = [];
     const objectIDRegex = /objectID:["']?([a-zA-Z0-9_-]+)["']?/gi;
     for (const match of filterString.matchAll(objectIDRegex)) {
         objectIDs.push(match[1]);
     }
-    // Remove objectID filters from the string
+    // Remove objectID filters
     const withoutObjectIDs = filterString
         .replace(/\s*AND\s+objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
         .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?\s*AND\s*/gi, '')
         .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
         .trim();
-    // Split by AND, remove parentheses and quotes
+    // Split by AND, clean up
     const filterParts = withoutObjectIDs
         .split(/\s+AND\s+/i)
         .map((part) => part
@@ -74,5 +113,4 @@ const parseFilters = (filterString) => {
         .filter((part) => part.length > 0);
     return { filterParts, objectIDs };
 };
-exports.parseFilters = parseFilters;
 //# sourceMappingURL=helpers.js.map
