@@ -2,11 +2,11 @@ import level from 'level-party'
 import si from 'search-index'
 
 export const getIndex = async () => {
-  return await si({ db: level(`.algoliaMockServer`, { valueEncoding: `json` }) })
+  return await si({db: level(`.algoliaMockServer`, {valueEncoding: `json`})})
 }
 
-export const idToObjectID = (documents) => {
-  return documents.map(({ _id, ...rest }) => ({ objectID: _id, ...rest }))
+export const idToObjectID = documents => {
+  return documents.map(({_id, ...rest}) => ({objectID: _id, ...rest}))
 }
 
 export const getTaskID = (): number => Math.floor(Math.random() * 1000)
@@ -22,7 +22,7 @@ export const getPageCount = (total: number, perPage: number): number => {
  */
 export const computeFacetsFromHits = (
   hits: Array<Record<string, unknown>>,
-  facetFields: string[],
+  facetFields: string[]
 ): Record<string, Record<string, number>> => {
   const facets: Record<string, Record<string, number>> = {}
 
@@ -56,19 +56,19 @@ export const computeFacetsFromHits = (
 export const applyPostFilters = (
   hits: Array<Record<string, unknown>>,
   objectIDs: string[],
-  notFilters: string[],
+  notFilters: string[]
 ): Array<Record<string, unknown>> => {
   let filtered = hits
 
   // Filter by objectID if specified
   if (objectIDs.length > 0) {
-    filtered = filtered.filter((hit) => objectIDs.includes(hit.objectID as string))
+    filtered = filtered.filter(hit => objectIDs.includes(hit.objectID as string))
   }
 
   // Apply NOT filters (exclude matching documents)
   if (notFilters.length > 0) {
-    filtered = filtered.filter((hit) => {
-      return notFilters.every((notFilter) => {
+    filtered = filtered.filter(hit => {
+      return notFilters.every(notFilter => {
         const [field, value] = notFilter.split(':')
         const hitValue = hit[field]
 
@@ -84,7 +84,7 @@ export const applyPostFilters = (
   return filtered
 }
 
-type SearchToken = string | { SEARCH: string[] } | { AND: string[] } | { OR: string[] }
+type SearchToken = string | {SEARCH: string[]} | {AND: string[]} | {OR: string[]}
 
 interface SearchExpression {
   AND: SearchToken[]
@@ -99,15 +99,15 @@ export const buildSearchExpression = (params: {
   query?: string
   filters?: string
   facetFilters?: unknown[]
-}): { searchExp: SearchExpression; objectIDs: string[]; notFilters: string[] } => {
-  const { query, filters, facetFilters } = params
-  const searchExp: SearchExpression = { AND: [] }
+}): {searchExp: SearchExpression; objectIDs: string[]; notFilters: string[]} => {
+  const {query, filters, facetFilters} = params
+  const searchExp: SearchExpression = {AND: []}
   let objectIDs: string[] = []
   let notFilters: string[] = []
 
   // Add text query if present
   if (query) {
-    searchExp.AND.push({ SEARCH: (query as string).split(' ') })
+    searchExp.AND.push({SEARCH: (query as string).split(' ')})
   }
 
   // Handle string filters (e.g., "type:IMAGE AND tags:Launch")
@@ -117,7 +117,7 @@ export const buildSearchExpression = (params: {
     notFilters = parsed.notFilters
 
     if (parsed.filterParts.length > 0) {
-      searchExp.AND.push({ AND: parsed.filterParts })
+      searchExp.AND.push({AND: parsed.filterParts})
     }
   }
 
@@ -126,17 +126,17 @@ export const buildSearchExpression = (params: {
     const andFilters: string[] = []
     for (const filter of facetFilters) {
       if (Array.isArray(filter)) {
-        searchExp.AND.push({ OR: filter })
+        searchExp.AND.push({OR: filter})
       } else {
         andFilters.push(filter as string)
       }
     }
     if (andFilters.length > 0) {
-      searchExp.AND.push({ AND: andFilters })
+      searchExp.AND.push({AND: andFilters})
     }
   }
 
-  return { searchExp, objectIDs, notFilters }
+  return {searchExp, objectIDs, notFilters}
 }
 
 /**
@@ -145,7 +145,7 @@ export const buildSearchExpression = (params: {
  */
 const parseStringFilters = (filterString: string) => {
   if (!filterString) {
-    return { filterParts: [], objectIDs: [], notFilters: [] }
+    return {filterParts: [], objectIDs: [], notFilters: []}
   }
 
   // Extract objectIDs
@@ -177,19 +177,19 @@ const parseStringFilters = (filterString: string) => {
 
   // If after removing NOT and objectID filters, nothing is left, return empty
   if (!cleaned) {
-    return { filterParts: [], objectIDs, notFilters }
+    return {filterParts: [], objectIDs, notFilters}
   }
 
   // Split by AND, clean up
   const filterParts = cleaned
     .split(/\s+AND\s+/i)
-    .map((part) =>
+    .map(part =>
       part
         .trim()
         .replace(/^\(|\)$/g, '')
-        .replace(/["']/g, ''),
+        .replace(/["']/g, '')
     )
-    .filter((part) => part.length > 0)
+    .filter(part => part.length > 0)
 
-  return { filterParts, objectIDs, notFilters }
+  return {filterParts, objectIDs, notFilters}
 }

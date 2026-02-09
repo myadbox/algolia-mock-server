@@ -1,15 +1,15 @@
-import express, { Application, Request, Response, Router } from 'express'
+import express, {Application, Request, Response, Router} from 'express'
 import cors from 'cors'
 
-import { getObject, getObjects, search, queries, saveObjects, task, clear } from './routes'
+import {getObject, getObjects, search, queries, saveObjects, task, clear} from './routes'
 
 const init = () => {
   const app: Application = express()
   const router = Router()
 
   app.use(cors())
-  app.use(express.json({ type: '*/*' }))
-  app.use(express.urlencoded({ extended: true }))
+  app.use(express.json({type: '*/*'}))
+  app.use(express.urlencoded({extended: true}))
   app.use(`/1/indexes`, router)
 
   app.get(`/`, async (req: Request, res: Response): Promise<Response> => {

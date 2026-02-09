@@ -1,5 +1,5 @@
-import { Request, Response } from 'express'
-import { getIndex, idToObjectID } from '../helpers'
+import {Request, Response} from 'express'
+import {getIndex, idToObjectID} from '../helpers'
 
 /**
  * Get an object from a specific index
@@ -7,7 +7,7 @@ import { getIndex, idToObjectID } from '../helpers'
  */
 export const getObject = async (req: Request, res: Response): Promise<Response> => {
   const {
-    params: { objectID },
+    params: {objectID},
   } = req
 
   try {
@@ -18,6 +18,6 @@ export const getObject = async (req: Request, res: Response): Promise<Response> 
 
     return res.status(200).send(documents[0])
   } catch (err) {
-    return res.status(500).send({ message: err })
+    return res.status(500).send({message: err})
   }
 }

@@ -1,5 +1,5 @@
-import { Request, Response } from 'express'
-import { getIndex, idToObjectID } from '../helpers'
+import {Request, Response} from 'express'
+import {getIndex, idToObjectID} from '../helpers'
 
 /**
  * Get objects from multiple indexes
@@ -7,10 +7,10 @@ import { getIndex, idToObjectID } from '../helpers'
  */
 export const getObjects = async (req: Request, res: Response): Promise<Response> => {
   const {
-    body: { requests },
+    body: {requests},
   } = req
 
-  const objectIDs = requests.map((r) => r.objectID)
+  const objectIDs = requests.map(r => r.objectID)
   try {
     const db = await getIndex()
 
@@ -19,6 +19,6 @@ export const getObjects = async (req: Request, res: Response): Promise<Response>
 
     return res.status(200).send(documents)
   } catch (err) {
-    return res.status(500).send({ message: err })
+    return res.status(500).send({message: err})
   }
 }

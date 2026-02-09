@@ -1,5 +1,5 @@
-import { Request, Response } from 'express'
-import { getIndex, getTaskID } from '../helpers'
+import {Request, Response} from 'express'
+import {getIndex, getTaskID} from '../helpers'
 
 /**
  * Delete index's content
@@ -17,6 +17,6 @@ export const clear = async (req: Request, res: Response): Promise<Response> => {
       taskID: getTaskID(),
     })
   } catch (err) {
-    return res.status(500).send({ message: err })
+    return res.status(500).send({message: err})
   }
 }

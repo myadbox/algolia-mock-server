@@ -1,5 +1,5 @@
-import { Request, Response } from 'express'
-import { getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFilters } from '../helpers'
+import {Request, Response} from 'express'
+import {getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFilters} from '../helpers'
 
 /**
  * Search in a single index
@@ -7,8 +7,8 @@ import { getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostF
  */
 export const search = async (req: Request, res: Response): Promise<Response> => {
   const {
-    params: { indexName },
-    body: { query, filters, facetFilters, hitsPerPage: hitsPerPageParam },
+    params: {indexName},
+    body: {query, filters, facetFilters, hitsPerPage: hitsPerPageParam},
   } = req
 
   try {
@@ -16,7 +16,7 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
     const hitsPerPage = parseInt((hitsPerPageParam as string) || `20`, 10)
 
     // Build search expression and extract post-filters
-    const { searchExp, objectIDs, notFilters } = buildSearchExpression({
+    const {searchExp, objectIDs, notFilters} = buildSearchExpression({
       query,
       filters,
       facetFilters,
@@ -25,14 +25,14 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
     // Execute query
     let result
     if (searchExp.AND.length > 0) {
-      result = await db.QUERY(searchExp, { DOCUMENTS: true })
+      result = await db.QUERY(searchExp, {DOCUMENTS: true})
     } else {
       const allDocs = await db.ALL_DOCUMENTS(hitsPerPage)
-      result = { RESULT: allDocs.map((doc: unknown) => ({ _doc: doc })) }
+      result = {RESULT: allDocs.map((doc: unknown) => ({_doc: doc}))}
     }
 
     // Extract hits and apply post-filters (objectID, NOT filters)
-    let hits = idToObjectID(result.RESULT.map((r: { _doc: unknown }) => r._doc))
+    let hits = idToObjectID(result.RESULT.map((r: {_doc: unknown}) => r._doc))
     hits = applyPostFilters(hits, objectIDs, notFilters)
 
     const nbPages = getPageCount(hits.length, hitsPerPage)
@@ -48,6 +48,6 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
       index: indexName,
     })
   } catch (err) {
-    return res.status(500).send({ message: err })
+    return res.status(500).send({message: err})
   }
 }

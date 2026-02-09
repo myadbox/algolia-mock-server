@@ -1,5 +1,5 @@
-import { Request, Response } from 'express'
-import { getIndex, getTaskID } from '../helpers'
+import {Request, Response} from 'express'
+import {getIndex, getTaskID} from '../helpers'
 
 interface SaveResponse {
   wait: () => Promise<SaveResponse>
@@ -18,7 +18,7 @@ interface SaveResponse {
  */
 export const saveObjects = async (req: Request, res: Response): Promise<Response> => {
   const {
-    body: { requests },
+    body: {requests},
   } = req
 
   try {
@@ -30,13 +30,13 @@ export const saveObjects = async (req: Request, res: Response): Promise<Response
     for (const request of requests) {
       const {
         action,
-        body: { objectID, ...rest },
+        body: {objectID, ...rest},
       } = request
 
       switch (action) {
         case `addObject`:
         case `updateObject`:
-          puts.push({ ...rest, _id: objectID })
+          puts.push({...rest, _id: objectID})
           break
 
         case `partialUpdateObjectNoCreate`:
@@ -44,7 +44,7 @@ export const saveObjects = async (req: Request, res: Response): Promise<Response
           const existing = await dbTemp.DOCUMENTS([objectID])
           await dbTemp.INDEX.STORE.close()
           if (existing) {
-            puts.push({ ...existing[0], ...rest, _id: objectID })
+            puts.push({...existing[0], ...rest, _id: objectID})
           }
           break
 
@@ -64,8 +64,8 @@ export const saveObjects = async (req: Request, res: Response): Promise<Response
     }
 
     if (puts.length) {
-      const result = await db.PUT(puts, { storeVectors: true, doNotIndexField: [], storeRawDocs: true })
-      response.objectIDs = result.map((r) => r._id)
+      const result = await db.PUT(puts, {storeVectors: true, doNotIndexField: [], storeRawDocs: true})
+      response.objectIDs = result.map(r => r._id)
     }
 
     if (deletes.length) {

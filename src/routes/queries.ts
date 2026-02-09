@@ -1,4 +1,4 @@
-import { Request, Response } from 'express'
+import {Request, Response} from 'express'
 import {
   getIndex,
   getPageCount,
@@ -13,7 +13,7 @@ import {
  */
 export const queries = async (req: Request, res: Response): Promise<Response> => {
   const {
-    body: { requests },
+    body: {requests},
   } = req
 
   try {
@@ -36,7 +36,7 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
       const hitsPerPage = parseInt((hitsPerPageParams as string) || `1`, 10)
 
       // Build search expression and extract post-filters
-      const { searchExp, objectIDs, notFilters } = buildSearchExpression({
+      const {searchExp, objectIDs, notFilters} = buildSearchExpression({
         query: queryParams,
         filters: filtersParams,
         facetFilters: facetFiltersParams,
@@ -47,13 +47,13 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
       if (searchExp.AND.length > 0) {
         const result = await db.QUERY(searchExp, {
           DOCUMENTS: true,
-          PAGE: { NUMBER: page, SIZE: hitsPerPage },
+          PAGE: {NUMBER: page, SIZE: hitsPerPage},
         })
 
-        hits = idToObjectID(result.RESULT.map((r) => r._doc))
+        hits = idToObjectID(result.RESULT.map(r => r._doc))
       } else {
         const result = await db.ALL_DOCUMENTS(hitsPerPage)
-        hits = idToObjectID(result.map((r) => r._doc))
+        hits = idToObjectID(result.map(r => r._doc))
       }
 
       // Apply post-filters (objectID and NOT filters)
@@ -81,9 +81,9 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
       })
     }
 
-    return res.status(200).send({ results })
+    return res.status(200).send({results})
   } catch (err) {
     console.error(`Error in queries: ${JSON.stringify(err, null, 2)}`)
-    return res.status(500).send({ message: JSON.stringify(err) })
+    return res.status(500).send({message: JSON.stringify(err)})
   }
 }
