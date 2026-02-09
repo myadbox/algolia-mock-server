@@ -8,5 +8,6 @@
     "sourceMap": true,
     "outDir": "bin"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["tests/**/*", "node_modules", "**/*.test.ts"]
 }

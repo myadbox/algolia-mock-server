@@ -1,0 +1,5 @@
+.algoliaMockServer
+.claude
+coverage
+node_modules
+bin
