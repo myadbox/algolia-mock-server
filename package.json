@@ -1,6 +1,6 @@
 {
   "name": "@myadbox/algolia-mock-server",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "A mock server mimicking Algolia's v5 search index for e2e testing purposes",
   "author": "MyAdbox R&D",
   "license": "MIT",

@@ -35,11 +35,11 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                     DOCUMENTS: true,
                     PAGE: { NUMBER: page, SIZE: hitsPerPage },
                 });
-                hits = (0, helpers_1.idToObjectID)(result.RESULT.map((r) => r._doc));
+                hits = (0, helpers_1.idToObjectID)(result.RESULT.map(r => r._doc));
             }
             else {
                 const result = yield db.ALL_DOCUMENTS(hitsPerPage);
-                hits = (0, helpers_1.idToObjectID)(result.map((r) => r._doc));
+                hits = (0, helpers_1.idToObjectID)(result.map(r => r._doc));
             }
             // Apply post-filters (objectID and NOT filters)
             hits = (0, helpers_1.applyPostFilters)(hits, objectIDs, notFilters);

@@ -30,7 +30,7 @@ const getIndex = () => __awaiter(void 0, void 0, void 0, function* () {
     return yield (0, search_index_1.default)({ db: (0, level_party_1.default)(`.algoliaMockServer`, { valueEncoding: `json` }) });
 });
 exports.getIndex = getIndex;
-const idToObjectID = (documents) => {
+const idToObjectID = documents => {
     return documents.map((_a) => {
         var { _id } = _a, rest = __rest(_a, ["_id"]);
         return (Object.assign({ objectID: _id }, rest));
@@ -79,12 +79,12 @@ const applyPostFilters = (hits, objectIDs, notFilters) => {
     let filtered = hits;
     // Filter by objectID if specified
     if (objectIDs.length > 0) {
-        filtered = filtered.filter((hit) => objectIDs.includes(hit.objectID));
+        filtered = filtered.filter(hit => objectIDs.includes(hit.objectID));
     }
     // Apply NOT filters (exclude matching documents)
     if (notFilters.length > 0) {
-        filtered = filtered.filter((hit) => {
-            return notFilters.every((notFilter) => {
+        filtered = filtered.filter(hit => {
+            return notFilters.every(notFilter => {
                 const [field, value] = notFilter.split(':');
                 const hitValue = hit[field];
                 // Check if hit matches the NOT filter (if yes, exclude it)
@@ -176,11 +176,11 @@ const parseStringFilters = (filterString) => {
     // Split by AND, clean up
     const filterParts = cleaned
         .split(/\s+AND\s+/i)
-        .map((part) => part
+        .map(part => part
         .trim()
         .replace(/^\(|\)$/g, '')
         .replace(/["']/g, ''))
-        .filter((part) => part.length > 0);
+        .filter(part => part.length > 0);
     return { filterParts, objectIDs, notFilters };
 };
 //# sourceMappingURL=helpers.js.map

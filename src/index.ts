@@ -19,6 +19,39 @@ const init = () => {
   })
 
   router.post(`/:indexName/batch`, saveObjects)
+  router.post(`/:indexName`, (req: Request, res: Response) => {
+    req.body = {
+      requests: [
+        {
+          action: `addObject`,
+          body: req.body,
+        },
+      ],
+    }
+    return saveObjects(req, res)
+  })
+  router.post(`/:indexName/:objectID/partial`, (req: Request, res: Response) => {
+    req.body = {
+      requests: [
+        {
+          action: `partialUpdateObjectNoCreate`,
+          body: {objectID: req.params.objectID, ...req.body},
+        },
+      ],
+    }
+    return saveObjects(req, res)
+  })
+  router.delete(`/:indexName/:objectID`, (req: Request, res: Response) => {
+    req.body = {
+      requests: [
+        {
+          action: `deleteObject`,
+          body: {objectID: req.params.objectID},
+        },
+      ],
+    }
+    return saveObjects(req, res)
+  })
   router.post(`/:indexName/query`, search)
   router.post(`/*/queries`, queries)
   router.get(`/:indexName/:objectID`, getObject)

@@ -51,6 +51,39 @@ const init = () => {
         });
     }));
     router.post(`/:indexName/batch`, routes_1.saveObjects);
+    router.post(`/:indexName`, (req, res) => {
+        req.body = {
+            requests: [
+                {
+                    action: `addObject`,
+                    body: req.body,
+                },
+            ],
+        };
+        return (0, routes_1.saveObjects)(req, res);
+    });
+    router.post(`/:indexName/:objectID/partial`, (req, res) => {
+        req.body = {
+            requests: [
+                {
+                    action: `partialUpdateObjectNoCreate`,
+                    body: Object.assign({ objectID: req.params.objectID }, req.body),
+                },
+            ],
+        };
+        return (0, routes_1.saveObjects)(req, res);
+    });
+    router.delete(`/:indexName/:objectID`, (req, res) => {
+        req.body = {
+            requests: [
+                {
+                    action: `deleteObject`,
+                    body: { objectID: req.params.objectID },
+                },
+            ],
+        };
+        return (0, routes_1.saveObjects)(req, res);
+    });
     router.post(`/:indexName/query`, routes_1.search);
     router.post(`/*/queries`, routes_1.queries);
     router.get(`/:indexName/:objectID`, routes_1.getObject);

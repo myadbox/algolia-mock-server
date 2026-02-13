@@ -17,7 +17,7 @@ const helpers_1 = require("../helpers");
  */
 const getObjects = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { body: { requests }, } = req;
-    const objectIDs = requests.map((r) => r.objectID);
+    const objectIDs = requests.map(r => r.objectID);
     try {
         const db = yield (0, helpers_1.getIndex)();
         const result = yield db.DOCUMENTS(objectIDs);

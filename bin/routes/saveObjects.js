@@ -66,7 +66,7 @@ const saveObjects = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         };
         if (puts.length) {
             const result = yield db.PUT(puts, { storeVectors: true, doNotIndexField: [], storeRawDocs: true });
-            response.objectIDs = result.map((r) => r._id);
+            response.objectIDs = result.map(r => r._id);
         }
         if (deletes.length) {
             yield db.DELETE(deletes);
