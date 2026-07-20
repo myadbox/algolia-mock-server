@@ -43,6 +43,7 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
       })
 
       let hits = []
+      let totalCount = 0
 
       if (searchExp.AND.length > 0) {
         const result = await db.QUERY(searchExp, {
@@ -51,12 +52,16 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
         })
 
         hits = idToObjectID(result.RESULT.map(r => r._doc))
+        totalCount = typeof result.RESULT_LENGTH === `number` ? result.RESULT_LENGTH : hits.length
       } else {
-        const result = await db.ALL_DOCUMENTS(hitsPerPage)
-        hits = idToObjectID(result.map(r => r._doc))
+        const all = idToObjectID((await db.ALL_DOCUMENTS()).map(r => r._doc))
+        totalCount = all.length
+        const startIndex = page * hitsPerPage
+        hits = all.slice(startIndex, startIndex + hitsPerPage)
       }
 
       // Apply post-filters (objectID and NOT filters)
+      const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0
       hits = applyPostFilters(hits, objectIDs, notFilters)
 
       // Compute facets from filtered hits
@@ -66,12 +71,13 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
         facets = computeFacetsFromHits(hits, facetFields)
       }
 
-      const nbPages = getPageCount(hits.length, hitsPerPage)
+      const effectiveTotal = hasPostFilters ? hits.length : totalCount
+      const nbPages = getPageCount(effectiveTotal, hitsPerPage)
 
       results.push({
         hits,
         page,
-        nbHits: hits.length,
+        nbHits: effectiveTotal,
         nbPages,
         hitsPerPage,
         processingTimeMS: 1,
