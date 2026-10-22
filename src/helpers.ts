@@ -6,7 +6,11 @@ export const getIndex = async () => {
 }
 
 export const idToObjectID = documents => {
-  return documents.map(({_id, ...rest}) => ({objectID: _id, ...rest}))
+  return documents.map(document => {
+    if (!document) return null
+    const {_id, ...rest} = document
+    return {objectID: _id, ...rest}
+  })
 }
 
 export const getTaskID = (): number => Math.floor(Math.random() * 1000)

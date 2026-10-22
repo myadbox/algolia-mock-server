@@ -20,8 +20,11 @@ const getObject = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const db = yield (0, helpers_1.getIndex)();
         const result = yield db.DOCUMENTS([objectID]);
-        const documents = (0, helpers_1.idToObjectID)(result);
-        return res.status(200).send(documents[0]);
+        const [document] = (0, helpers_1.idToObjectID)(result);
+        if (!document) {
+            return res.status(404).send({ message: `ObjectID does not exist`, status: 404 });
+        }
+        return res.status(200).send(document);
     }
     catch (err) {
         return res.status(500).send({ message: err });
