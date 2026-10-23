@@ -17,7 +17,7 @@ export const getObjects = async (req: Request, res: Response): Promise<Response>
     const result = await db.DOCUMENTS(objectIDs)
     const documents = idToObjectID(result)
 
-    return res.status(200).send(documents)
+    return res.status(200).send({results: documents})
   } catch (err) {
     return res.status(500).send({message: err})
   }

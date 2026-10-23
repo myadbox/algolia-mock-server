@@ -31,9 +31,11 @@ const getIndex = () => __awaiter(void 0, void 0, void 0, function* () {
 });
 exports.getIndex = getIndex;
 const idToObjectID = documents => {
-    return documents.map((_a) => {
-        var { _id } = _a, rest = __rest(_a, ["_id"]);
-        return (Object.assign({ objectID: _id }, rest));
+    return documents.map(document => {
+        if (!document)
+            return null;
+        const { _id } = document, rest = __rest(document, ["_id"]);
+        return Object.assign({ objectID: _id }, rest);
     });
 };
 exports.idToObjectID = idToObjectID;
