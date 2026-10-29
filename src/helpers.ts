@@ -53,14 +53,36 @@ export const computeFacetsFromHits = (
   return facets
 }
 
+const splitFacetFilter = (filter: string): [string, string] => {
+  const separator = filter.indexOf(':')
+  return [filter.slice(0, separator), filter.slice(separator + 1)]
+}
+
+const isNegatedFacetFilter = (filter: unknown): filter is string =>
+  typeof filter === `string` && splitFacetFilter(filter)[1].startsWith(`-`)
+
+const hitHasFacetValue = (hit: Record<string, unknown>, field: string, value: string): boolean => {
+  const hitValue = hit[field]
+  if (Array.isArray(hitValue)) {
+    return hitValue.some(item => String(item) === value)
+  }
+  return hitValue !== undefined && hitValue !== null && String(hitValue) === value
+}
+
+const hitMatchesFacetFilter = (hit: Record<string, unknown>, filter: string): boolean => {
+  const [field, value] = splitFacetFilter(filter)
+  return value.startsWith(`-`) ? !hitHasFacetValue(hit, field, value.slice(1)) : hitHasFacetValue(hit, field, value)
+}
+
 /**
- * Apply post-filters (objectID and NOT filters) to hits
+ * Apply post-filters (objectID, NOT filters and facetFilter OR groups containing negations) to hits
  * Returns filtered hits array
  */
 export const applyPostFilters = (
   hits: Array<Record<string, unknown>>,
   objectIDs: string[],
-  notFilters: string[]
+  notFilters: string[],
+  orGroups: string[][] = []
 ): Array<Record<string, unknown>> => {
   let filtered = hits
 
@@ -69,20 +91,18 @@ export const applyPostFilters = (
     filtered = filtered.filter(hit => objectIDs.includes(hit.objectID as string))
   }
 
-  // Apply NOT filters (exclude matching documents)
+  // Apply NOT filters (exclude matching documents; documents missing the attribute are kept)
   if (notFilters.length > 0) {
-    filtered = filtered.filter(hit => {
-      return notFilters.every(notFilter => {
-        const [field, value] = notFilter.split(':')
-        const hitValue = hit[field]
-
-        // Check if hit matches the NOT filter (if yes, exclude it)
-        if (Array.isArray(hitValue)) {
-          return !hitValue.includes(value)
-        }
-        return hitValue !== value
+    filtered = filtered.filter(hit =>
+      notFilters.every(notFilter => {
+        const [field, value] = splitFacetFilter(notFilter)
+        return !hitHasFacetValue(hit, field, value)
       })
-    })
+    )
+  }
+
+  if (orGroups.length > 0) {
+    filtered = filtered.filter(hit => orGroups.every(group => group.some(filter => hitMatchesFacetFilter(hit, filter))))
   }
 
   return filtered
@@ -97,17 +117,20 @@ interface SearchExpression {
 /**
  * Build search expression from query and filters
  * Handles both string filters and array facetFilters
- * Returns { searchExp, objectIDs, notFilters }
+ * Negated facetFilters (`attr:-value`) can't be expressed in search-index, so they are returned for post-filtering:
+ * a lone negation becomes a NOT filter, an OR group containing one is evaluated whole in `orGroups`
+ * Returns { searchExp, objectIDs, notFilters, orGroups }
  */
 export const buildSearchExpression = (params: {
   query?: string
   filters?: string
   facetFilters?: unknown[]
-}): {searchExp: SearchExpression; objectIDs: string[]; notFilters: string[]} => {
+}): {searchExp: SearchExpression; objectIDs: string[]; notFilters: string[]; orGroups: string[][]} => {
   const {query, filters, facetFilters} = params
   const searchExp: SearchExpression = {AND: []}
   let objectIDs: string[] = []
   let notFilters: string[] = []
+  const orGroups: string[][] = []
 
   // Add text query if present
   if (query) {
@@ -129,7 +152,13 @@ export const buildSearchExpression = (params: {
   if (facetFilters) {
     const andFilters: string[] = []
     for (const filter of facetFilters) {
-      if (Array.isArray(filter)) {
+      const lone = Array.isArray(filter) && filter.length === 1 ? filter[0] : filter
+      if (isNegatedFacetFilter(lone)) {
+        const [field, value] = splitFacetFilter(lone)
+        notFilters.push(`${field}:${value.slice(1)}`)
+      } else if (Array.isArray(filter) && filter.some(isNegatedFacetFilter)) {
+        orGroups.push(filter as string[])
+      } else if (Array.isArray(filter)) {
         searchExp.AND.push({OR: filter})
       } else {
         andFilters.push(filter as string)
@@ -140,7 +169,7 @@ export const buildSearchExpression = (params: {
     }
   }
 
-  return {searchExp, objectIDs, notFilters}
+  return {searchExp, objectIDs, notFilters, orGroups}
 }
 
 /**
