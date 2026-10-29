@@ -24,42 +24,46 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             const page = parseInt(pageParam || `0`, 10);
             const hitsPerPage = parseInt(hitsPerPageParams || `1`, 10);
             // Build search expression and extract post-filters
-            const { searchExp, objectIDs, notFilters } = (0, helpers_1.buildSearchExpression)({
+            const { searchExp, objectIDs, notFilters, orGroups } = (0, helpers_1.buildSearchExpression)({
                 query: queryParams,
                 filters: filtersParams,
                 facetFilters: facetFiltersParams,
             });
+            const facetFields = facetsParams ? (Array.isArray(facetsParams) ? facetsParams : [facetsParams]) : [];
+            const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0 || orGroups.length > 0;
+            const startIndex = page * hitsPerPage;
             let hits = [];
             let totalCount = 0;
-            if (searchExp.AND.length > 0) {
-                const result = yield db.QUERY(searchExp, {
-                    DOCUMENTS: true,
-                    PAGE: { NUMBER: page, SIZE: hitsPerPage },
-                });
-                hits = (0, helpers_1.idToObjectID)(result.RESULT.map(r => r._doc));
-                totalCount = typeof result.RESULT_LENGTH === `number` ? result.RESULT_LENGTH : hits.length;
+            let facets = {};
+            if (hasPostFilters) {
+                // Post-filters run in JS, so totals, facets and the page slice must come from the full filtered set
+                const matched = searchExp.AND.length > 0 ? (yield db.QUERY(searchExp, { DOCUMENTS: true })).RESULT : yield db.ALL_DOCUMENTS();
+                const filtered = (0, helpers_1.applyPostFilters)((0, helpers_1.idToObjectID)(matched.map(r => r._doc)), objectIDs, notFilters, orGroups);
+                totalCount = filtered.length;
+                hits = filtered.slice(startIndex, startIndex + hitsPerPage);
+                facets = (0, helpers_1.computeFacetsFromHits)(filtered, facetFields);
             }
             else {
-                const all = (0, helpers_1.idToObjectID)((yield db.ALL_DOCUMENTS()).map(r => r._doc));
-                totalCount = all.length;
-                const startIndex = page * hitsPerPage;
-                hits = all.slice(startIndex, startIndex + hitsPerPage);
-            }
-            // Apply post-filters (objectID and NOT filters)
-            const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0;
-            hits = (0, helpers_1.applyPostFilters)(hits, objectIDs, notFilters);
-            // Compute facets from filtered hits
-            let facets = {};
-            if (facetsParams) {
-                const facetFields = Array.isArray(facetsParams) ? facetsParams : [facetsParams];
+                if (searchExp.AND.length > 0) {
+                    const result = yield db.QUERY(searchExp, {
+                        DOCUMENTS: true,
+                        PAGE: { NUMBER: page, SIZE: hitsPerPage },
+                    });
+                    hits = (0, helpers_1.idToObjectID)(result.RESULT.map(r => r._doc));
+                    totalCount = typeof result.RESULT_LENGTH === `number` ? result.RESULT_LENGTH : hits.length;
+                }
+                else {
+                    const all = (0, helpers_1.idToObjectID)((yield db.ALL_DOCUMENTS()).map(r => r._doc));
+                    totalCount = all.length;
+                    hits = all.slice(startIndex, startIndex + hitsPerPage);
+                }
                 facets = (0, helpers_1.computeFacetsFromHits)(hits, facetFields);
             }
-            const effectiveTotal = hasPostFilters ? hits.length : totalCount;
-            const nbPages = (0, helpers_1.getPageCount)(effectiveTotal, hitsPerPage);
+            const nbPages = (0, helpers_1.getPageCount)(totalCount, hitsPerPage);
             results.push({
                 hits,
                 page,
-                nbHits: effectiveTotal,
+                nbHits: totalCount,
                 nbPages,
                 hitsPerPage,
                 processingTimeMS: 1,

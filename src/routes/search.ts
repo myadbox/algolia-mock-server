@@ -16,7 +16,7 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
     const hitsPerPage = parseInt((hitsPerPageParam as string) || `20`, 10)
 
     // Build search expression and extract post-filters
-    const {searchExp, objectIDs, notFilters} = buildSearchExpression({
+    const {searchExp, objectIDs, notFilters, orGroups} = buildSearchExpression({
       query,
       filters,
       facetFilters,
@@ -27,13 +27,14 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
     if (searchExp.AND.length > 0) {
       result = await db.QUERY(searchExp, {DOCUMENTS: true})
     } else {
-      const allDocs = await db.ALL_DOCUMENTS(hitsPerPage)
-      result = {RESULT: allDocs.map((doc: unknown) => ({_doc: doc}))}
+      const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0 || orGroups.length > 0
+      const allDocs = await db.ALL_DOCUMENTS(hasPostFilters ? undefined : hitsPerPage)
+      result = {RESULT: allDocs}
     }
 
-    // Extract hits and apply post-filters (objectID, NOT filters)
+    // Extract hits and apply post-filters (objectID, NOT filters, negated facetFilter groups)
     let hits = idToObjectID(result.RESULT.map((r: {_doc: unknown}) => r._doc))
-    hits = applyPostFilters(hits, objectIDs, notFilters)
+    hits = applyPostFilters(hits, objectIDs, notFilters, orGroups)
 
     const nbPages = getPageCount(hits.length, hitsPerPage)
 

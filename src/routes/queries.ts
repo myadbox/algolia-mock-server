@@ -36,48 +36,52 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
       const hitsPerPage = parseInt((hitsPerPageParams as string) || `1`, 10)
 
       // Build search expression and extract post-filters
-      const {searchExp, objectIDs, notFilters} = buildSearchExpression({
+      const {searchExp, objectIDs, notFilters, orGroups} = buildSearchExpression({
         query: queryParams,
         filters: filtersParams,
         facetFilters: facetFiltersParams,
       })
 
+      const facetFields = facetsParams ? (Array.isArray(facetsParams) ? facetsParams : [facetsParams]) : []
+      const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0 || orGroups.length > 0
+      const startIndex = page * hitsPerPage
+
       let hits = []
       let totalCount = 0
-
-      if (searchExp.AND.length > 0) {
-        const result = await db.QUERY(searchExp, {
-          DOCUMENTS: true,
-          PAGE: {NUMBER: page, SIZE: hitsPerPage},
-        })
-
-        hits = idToObjectID(result.RESULT.map(r => r._doc))
-        totalCount = typeof result.RESULT_LENGTH === `number` ? result.RESULT_LENGTH : hits.length
-      } else {
-        const all = idToObjectID((await db.ALL_DOCUMENTS()).map(r => r._doc))
-        totalCount = all.length
-        const startIndex = page * hitsPerPage
-        hits = all.slice(startIndex, startIndex + hitsPerPage)
-      }
-
-      // Apply post-filters (objectID and NOT filters)
-      const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0
-      hits = applyPostFilters(hits, objectIDs, notFilters)
-
-      // Compute facets from filtered hits
       let facets = {}
-      if (facetsParams) {
-        const facetFields = Array.isArray(facetsParams) ? facetsParams : [facetsParams]
+
+      if (hasPostFilters) {
+        // Post-filters run in JS, so totals, facets and the page slice must come from the full filtered set
+        const matched =
+          searchExp.AND.length > 0 ? (await db.QUERY(searchExp, {DOCUMENTS: true})).RESULT : await db.ALL_DOCUMENTS()
+        const filtered = applyPostFilters(idToObjectID(matched.map(r => r._doc)), objectIDs, notFilters, orGroups)
+        totalCount = filtered.length
+        hits = filtered.slice(startIndex, startIndex + hitsPerPage)
+        facets = computeFacetsFromHits(filtered, facetFields)
+      } else {
+        if (searchExp.AND.length > 0) {
+          const result = await db.QUERY(searchExp, {
+            DOCUMENTS: true,
+            PAGE: {NUMBER: page, SIZE: hitsPerPage},
+          })
+
+          hits = idToObjectID(result.RESULT.map(r => r._doc))
+          totalCount = typeof result.RESULT_LENGTH === `number` ? result.RESULT_LENGTH : hits.length
+        } else {
+          const all = idToObjectID((await db.ALL_DOCUMENTS()).map(r => r._doc))
+          totalCount = all.length
+          hits = all.slice(startIndex, startIndex + hitsPerPage)
+        }
+
         facets = computeFacetsFromHits(hits, facetFields)
       }
 
-      const effectiveTotal = hasPostFilters ? hits.length : totalCount
-      const nbPages = getPageCount(effectiveTotal, hitsPerPage)
+      const nbPages = getPageCount(totalCount, hitsPerPage)
 
       results.push({
         hits,
         page,
-        nbHits: effectiveTotal,
+        nbHits: totalCount,
         nbPages,
         hitsPerPage,
         processingTimeMS: 1,
