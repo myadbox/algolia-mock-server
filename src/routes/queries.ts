@@ -6,7 +6,12 @@ import {
   buildSearchExpression,
   applyPostFilters,
   computeFacetsFromHits,
+  parseListParam,
+  toParamsString,
 } from '../helpers'
+
+const parseFacets = (facets: unknown): unknown =>
+  typeof facets === `string` && facets.startsWith(`[`) ? parseListParam(facets) : facets
 
 /**
  * Search and filter in multiple indexes
@@ -42,7 +47,8 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
         facetFilters: facetFiltersParams,
       })
 
-      const facetFields = facetsParams ? (Array.isArray(facetsParams) ? facetsParams : [facetsParams]) : []
+      const parsedFacets = parseFacets(facetsParams)
+      const facetFields = parsedFacets ? (Array.isArray(parsedFacets) ? parsedFacets : [parsedFacets]) : []
       const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0 || orGroups.length > 0
       const startIndex = page * hitsPerPage
 
@@ -88,6 +94,7 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
         query: queryParams,
         index: indexName,
         facets,
+        params: toParamsString(request),
       })
     }
 

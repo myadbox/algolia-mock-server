@@ -23,7 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildSearchExpression = exports.applyPostFilters = exports.computeFacetsFromHits = exports.getPageCount = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
+exports.buildSearchExpression = exports.toParamsString = exports.parseListParam = exports.applyPostFilters = exports.computeFacetsFromHits = exports.getPageCount = exports.getTaskID = exports.idToObjectID = exports.getIndex = void 0;
 const level_party_1 = __importDefault(require("level-party"));
 const search_index_1 = __importDefault(require("search-index"));
 const getIndex = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -78,6 +78,9 @@ const splitFacetFilter = (filter) => {
     return [filter.slice(0, separator), filter.slice(separator + 1)];
 };
 const isNegatedFacetFilter = (filter) => typeof filter === `string` && splitFacetFilter(filter)[1].startsWith(`-`);
+// search-index never sees objectID: it is stored as `_id`, and tokenising would split a hyphenated id anyway
+const isObjectIDFacetFilter = (filter) => typeof filter === `string` && splitFacetFilter(filter)[0] === `objectID`;
+const needsPostFiltering = (filter) => isNegatedFacetFilter(filter) || isObjectIDFacetFilter(filter);
 const hitHasFacetValue = (hit, field, value) => {
     const hitValue = hit[field];
     if (Array.isArray(hitValue)) {
@@ -113,10 +116,25 @@ const applyPostFilters = (hits, objectIDs, notFilters, orGroups = []) => {
 };
 exports.applyPostFilters = applyPostFilters;
 /**
+ * Algolia accepts list params as JSON strings too, which is how a client replays the `params` it was echoed
+ */
+const parseListParam = (value) => (typeof value === `string` ? JSON.parse(value) : value);
+exports.parseListParam = parseListParam;
+/**
+ * Encode a request the way Algolia echoes it back in a result's `params`
+ */
+const toParamsString = (_a) => {
+    var { indexName, type } = _a, params = __rest(_a, ["indexName", "type"]);
+    return new URLSearchParams(Object.fromEntries(Object.entries(params)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => [key, typeof value === `object` ? JSON.stringify(value) : String(value)]))).toString();
+};
+exports.toParamsString = toParamsString;
+/**
  * Build search expression from query and filters
  * Handles both string filters and array facetFilters
- * Negated facetFilters (`attr:-value`) can't be expressed in search-index, so they are returned for post-filtering:
- * a lone negation becomes a NOT filter, an OR group containing one is evaluated whole in `orGroups`
+ * Negated (`attr:-value`) and objectID facetFilters can't be expressed in search-index, so they are returned for
+ * post-filtering: a lone negation becomes a NOT filter, any other group containing one is evaluated whole in `orGroups`
  * Returns { searchExp, objectIDs, notFilters, orGroups }
  */
 const buildSearchExpression = (params) => {
@@ -141,13 +159,16 @@ const buildSearchExpression = (params) => {
     // Handle array facetFilters (e.g., [["type:IMAGE"], ["tags:Launch"]])
     if (facetFilters) {
         const andFilters = [];
-        for (const filter of facetFilters) {
+        for (const filter of (0, exports.parseListParam)(facetFilters)) {
             const lone = Array.isArray(filter) && filter.length === 1 ? filter[0] : filter;
             if (isNegatedFacetFilter(lone)) {
                 const [field, value] = splitFacetFilter(lone);
                 notFilters.push(`${field}:${value.slice(1)}`);
             }
-            else if (Array.isArray(filter) && filter.some(isNegatedFacetFilter)) {
+            else if (isObjectIDFacetFilter(lone)) {
+                orGroups.push([lone]);
+            }
+            else if (Array.isArray(filter) && filter.some(needsPostFiltering)) {
                 orGroups.push(filter);
             }
             else if (Array.isArray(filter)) {

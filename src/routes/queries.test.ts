@@ -200,3 +200,119 @@ describe('negated facetFilters', () => {
     expect(objectIDs(res.body.hits)).toEqual([`image`])
   })
 })
+
+describe('objectID facetFilters', () => {
+  const app = init()
+  const indexName = `test_NEBULA_OBJECT_ID`
+  const ids = [`a1b2-c3d4-0001`, `a1b2-c3d4-0002`, `a1b2-c3d4-0003`]
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({
+        requests: ids.map((objectID, index) => ({
+          action: `addObject`,
+          body: {objectID, name: `Asset ${index}`, type: index === 2 ? `VIDEO` : `IMAGE`},
+        })),
+      })
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  const search = async (body: Record<string, unknown>) => {
+    const res = await request(app).post(`/1/indexes/${indexName}/query`).send(body)
+    expect(res.status).toBe(200)
+    return res.body
+  }
+
+  const queried = async (body: Record<string, unknown>) => {
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, hitsPerPage: 10, ...body}]})
+    expect(res.status).toBe(200)
+    return res.body.results[0]
+  }
+
+  const objectIDs = (result: {hits: Array<{objectID: string}>}) => result.hits.map(hit => hit.objectID).sort()
+
+  it(`matches hyphenated ids in an OR group on single-index search`, async () => {
+    const result = await search({facetFilters: [[`objectID:${ids[0]}`, `objectID:${ids[2]}`]]})
+
+    expect(objectIDs(result)).toEqual([ids[0], ids[2]])
+  })
+
+  it(`matches hyphenated ids in an OR group on multi-index queries`, async () => {
+    const result = await queried({facetFilters: [[`objectID:${ids[1]}`]]})
+
+    expect(objectIDs(result)).toEqual([ids[1]])
+    expect(result.nbHits).toBe(1)
+  })
+
+  it(`matches an id given as a top-level string facetFilter`, async () => {
+    const result = await queried({facetFilters: [`objectID:${ids[1]}`]})
+
+    expect(objectIDs(result)).toEqual([ids[1]])
+  })
+
+  it(`ANDs an objectID group with the other facetFilters`, async () => {
+    const result = await search({facetFilters: [[`type:IMAGE`], [`objectID:${ids[0]}`, `objectID:${ids[2]}`]]})
+
+    expect(objectIDs(result)).toEqual([ids[0]])
+  })
+
+  it(`accepts facetFilters as a JSON string, as Algolia does`, async () => {
+    const result = await search({facetFilters: JSON.stringify([[`objectID:${ids[0]}`]])})
+
+    expect(objectIDs(result)).toEqual([ids[0]])
+  })
+})
+
+describe('echoed search params', () => {
+  const app = init()
+  const indexName = `test_NEBULA_PARAMS`
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({
+        requests: [0, 1, 2, 3, 4].map(index => ({
+          action: `addObject`,
+          body: {objectID: `doc-${index}`, name: `Doc ${index}`, type: `IMAGE`},
+        })),
+      })
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  it(`echoes each request as a URL-encoded params string`, async () => {
+    const facetFilters = [[`type:IMAGE`]]
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, query: ``, page: 0, hitsPerPage: 2, facetFilters}]})
+
+    const echoed = Object.fromEntries(new URLSearchParams(res.body.results[0].params))
+
+    expect(echoed).toEqual({query: ``, page: `0`, hitsPerPage: `2`, facetFilters: JSON.stringify(facetFilters)})
+  })
+
+  it(`serves the requested page of a single-index search and reports the true total`, async () => {
+    const pageOf = async (page: number) => {
+      const res = await request(app).post(`/1/indexes/${indexName}/query`).send({page, hitsPerPage: 2})
+      return res.body
+    }
+
+    const [first, second, third] = await Promise.all([pageOf(0), pageOf(1), pageOf(2)])
+    const seen = [first, second, third].flatMap(result => result.hits.map((hit: {objectID: string}) => hit.objectID))
+
+    expect(new Set(seen).size).toBe(5)
+    expect(first.nbHits).toBe(5)
+    expect(first.nbPages).toBe(3)
+    expect(second.page).toBe(1)
+  })
+})
