@@ -89,6 +89,7 @@ The mock server supports a subset of [Algolia's filter syntax](https://www.algol
 - ✅ **Quoted values**: Handle spaces and special characters (e.g., `tags:"Launch Event"`)
 - ✅ **ObjectID filtering**: Filter by objectID (e.g., `objectID:abc123`)
 - ✅ **ObjectID facetFilters**: Match ids in an OR group (e.g., `[["objectID:abc-123", "objectID:def-456"]]`), ANDed with any other facetFilters
+- ✅ **Hyphenated facetFilters**: Match values containing a hyphen exactly (e.g., `[["createdById:874a6bd0-3e4f-4618-9819-51b498ddc48e"]]`), ANDed with any other facetFilters
 
 **Example:**
 

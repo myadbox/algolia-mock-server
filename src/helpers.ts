@@ -65,7 +65,12 @@ const isNegatedFacetFilter = (filter: unknown): filter is string =>
 const isObjectIDFacetFilter = (filter: unknown): filter is string =>
   typeof filter === `string` && splitFacetFilter(filter)[0] === `objectID`
 
-const needsPostFiltering = (filter: unknown): boolean => isNegatedFacetFilter(filter) || isObjectIDFacetFilter(filter)
+// search-index tokenises scalar values on punctuation, so a hyphenated value (a user id, say) never matches itself
+const isHyphenatedFacetFilter = (filter: unknown): filter is string =>
+  typeof filter === `string` && splitFacetFilter(filter)[1].includes(`-`)
+
+const needsPostFiltering = (filter: unknown): boolean =>
+  isNegatedFacetFilter(filter) || isObjectIDFacetFilter(filter) || isHyphenatedFacetFilter(filter)
 
 const hitHasFacetValue = (hit: Record<string, unknown>, field: string, value: string): boolean => {
   const hitValue = hit[field]
@@ -81,7 +86,7 @@ const hitMatchesFacetFilter = (hit: Record<string, unknown>, filter: string): bo
 }
 
 /**
- * Apply post-filters (objectID, NOT filters and facetFilter OR groups containing negations) to hits
+ * Apply post-filters (objectID, NOT filters and the facetFilter groups search-index can't express) to hits
  * Returns filtered hits array
  */
 export const applyPostFilters = (
@@ -140,8 +145,8 @@ export const toParamsString = ({indexName, type, ...params}: Record<string, unkn
 /**
  * Build search expression from query and filters
  * Handles both string filters and array facetFilters
- * Negated (`attr:-value`) and objectID facetFilters can't be expressed in search-index, so they are returned for
- * post-filtering: a lone negation becomes a NOT filter, any other group containing one is evaluated whole in `orGroups`
+ * Negated (`attr:-value`), objectID and hyphenated facetFilters can't be expressed in search-index, so they are
+ * returned for post-filtering: a lone negation becomes a NOT filter, any other group containing one is evaluated whole in `orGroups`
  * Returns { searchExp, objectIDs, notFilters, orGroups }
  */
 export const buildSearchExpression = (params: {
@@ -179,7 +184,7 @@ export const buildSearchExpression = (params: {
       if (isNegatedFacetFilter(lone)) {
         const [field, value] = splitFacetFilter(lone)
         notFilters.push(`${field}:${value.slice(1)}`)
-      } else if (isObjectIDFacetFilter(lone)) {
+      } else if (isObjectIDFacetFilter(lone) || isHyphenatedFacetFilter(lone)) {
         orGroups.push([lone])
       } else if (Array.isArray(filter) && filter.some(needsPostFiltering)) {
         orGroups.push(filter as string[])

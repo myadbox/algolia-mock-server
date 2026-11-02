@@ -80,7 +80,9 @@ const splitFacetFilter = (filter) => {
 const isNegatedFacetFilter = (filter) => typeof filter === `string` && splitFacetFilter(filter)[1].startsWith(`-`);
 // search-index never sees objectID: it is stored as `_id`, and tokenising would split a hyphenated id anyway
 const isObjectIDFacetFilter = (filter) => typeof filter === `string` && splitFacetFilter(filter)[0] === `objectID`;
-const needsPostFiltering = (filter) => isNegatedFacetFilter(filter) || isObjectIDFacetFilter(filter);
+// search-index tokenises scalar values on punctuation, so a hyphenated value (a user id, say) never matches itself
+const isHyphenatedFacetFilter = (filter) => typeof filter === `string` && splitFacetFilter(filter)[1].includes(`-`);
+const needsPostFiltering = (filter) => isNegatedFacetFilter(filter) || isObjectIDFacetFilter(filter) || isHyphenatedFacetFilter(filter);
 const hitHasFacetValue = (hit, field, value) => {
     const hitValue = hit[field];
     if (Array.isArray(hitValue)) {
@@ -93,7 +95,7 @@ const hitMatchesFacetFilter = (hit, filter) => {
     return value.startsWith(`-`) ? !hitHasFacetValue(hit, field, value.slice(1)) : hitHasFacetValue(hit, field, value);
 };
 /**
- * Apply post-filters (objectID, NOT filters and facetFilter OR groups containing negations) to hits
+ * Apply post-filters (objectID, NOT filters and the facetFilter groups search-index can't express) to hits
  * Returns filtered hits array
  */
 const applyPostFilters = (hits, objectIDs, notFilters, orGroups = []) => {
@@ -133,8 +135,8 @@ exports.toParamsString = toParamsString;
 /**
  * Build search expression from query and filters
  * Handles both string filters and array facetFilters
- * Negated (`attr:-value`) and objectID facetFilters can't be expressed in search-index, so they are returned for
- * post-filtering: a lone negation becomes a NOT filter, any other group containing one is evaluated whole in `orGroups`
+ * Negated (`attr:-value`), objectID and hyphenated facetFilters can't be expressed in search-index, so they are
+ * returned for post-filtering: a lone negation becomes a NOT filter, any other group containing one is evaluated whole in `orGroups`
  * Returns { searchExp, objectIDs, notFilters, orGroups }
  */
 const buildSearchExpression = (params) => {
@@ -165,7 +167,7 @@ const buildSearchExpression = (params) => {
                 const [field, value] = splitFacetFilter(lone);
                 notFilters.push(`${field}:${value.slice(1)}`);
             }
-            else if (isObjectIDFacetFilter(lone)) {
+            else if (isObjectIDFacetFilter(lone) || isHyphenatedFacetFilter(lone)) {
                 orGroups.push([lone]);
             }
             else if (Array.isArray(filter) && filter.some(needsPostFiltering)) {

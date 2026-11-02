@@ -270,6 +270,78 @@ describe('objectID facetFilters', () => {
   })
 })
 
+describe('hyphenated facetFilters', () => {
+  const app = init()
+  const indexName = `test_NEBULA`
+  const mine = `874a6bd0-3e4f-4618-9819-51b498ddc48e`
+  const theirs = `1f2e3d4c-5b6a-4798-8695-a4b3c2d1e0f9`
+  const documents = [
+    {objectID: `mine-image`, type: `IMAGE`, createdById: mine, tags: [`co-op`]},
+    {objectID: `mine-video`, type: `VIDEO`, createdById: mine, tags: [`launch`]},
+    {objectID: `theirs-image`, type: `IMAGE`, createdById: theirs, tags: [`launch`]},
+    {objectID: `nobodys-image`, type: `IMAGE`, tags: []},
+  ]
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    const res = await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({requests: documents.map(body => ({action: `addObject`, body}))})
+    expect(res.status).toBe(200)
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  const query = async (params: Record<string, unknown>) => {
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, query: ``, hitsPerPage: 20, ...params}]})
+    expect(res.status).toBe(200)
+    return res.body.results[0]
+  }
+
+  const objectIDs = (hits: Array<{objectID: string}>): string[] => hits.map(hit => hit.objectID).sort()
+
+  it(`matches a hyphenated value in a lone-value group, and reports the true total`, async () => {
+    const result = await query({facetFilters: [[`createdById:${mine}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`mine-image`, `mine-video`])
+    expect(result.nbHits).toBe(2)
+  })
+
+  it(`matches a hyphenated value given as a top-level string`, async () => {
+    const result = await query({facetFilters: [`createdById:${theirs}`]})
+
+    expect(objectIDs(result.hits)).toEqual([`theirs-image`])
+  })
+
+  it(`matches either hyphenated value in an OR group, leaving out records missing the attribute`, async () => {
+    const result = await query({facetFilters: [[`createdById:${mine}`, `createdById:${theirs}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`mine-image`, `mine-video`, `theirs-image`])
+  })
+
+  it(`matches a hyphenated value inside an array attribute`, async () => {
+    const result = await query({facetFilters: [[`tags:co-op`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`mine-image`])
+  })
+
+  it(`ANDs a hyphenated value with the other facetFilters`, async () => {
+    const result = await query({facetFilters: [[`createdById:${mine}`], [`type:VIDEO`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`mine-video`])
+  })
+
+  it(`does not take a negation for a hyphenated value`, async () => {
+    const result = await query({facetFilters: [[`createdById:-${mine}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`nobodys-image`, `theirs-image`])
+  })
+})
+
 describe('echoed search params', () => {
   const app = init()
   const indexName = `test_NEBULA_PARAMS`
