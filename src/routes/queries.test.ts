@@ -200,3 +200,191 @@ describe('negated facetFilters', () => {
     expect(objectIDs(res.body.hits)).toEqual([`image`])
   })
 })
+
+describe('objectID facetFilters', () => {
+  const app = init()
+  const indexName = `test_NEBULA_OBJECT_ID`
+  const ids = [`a1b2-c3d4-0001`, `a1b2-c3d4-0002`, `a1b2-c3d4-0003`]
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({
+        requests: ids.map((objectID, index) => ({
+          action: `addObject`,
+          body: {objectID, name: `Asset ${index}`, type: index === 2 ? `VIDEO` : `IMAGE`},
+        })),
+      })
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  const search = async (body: Record<string, unknown>) => {
+    const res = await request(app).post(`/1/indexes/${indexName}/query`).send(body)
+    expect(res.status).toBe(200)
+    return res.body
+  }
+
+  const queried = async (body: Record<string, unknown>) => {
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, hitsPerPage: 10, ...body}]})
+    expect(res.status).toBe(200)
+    return res.body.results[0]
+  }
+
+  const objectIDs = (result: {hits: Array<{objectID: string}>}) => result.hits.map(hit => hit.objectID).sort()
+
+  it(`matches hyphenated ids in an OR group on single-index search`, async () => {
+    const result = await search({facetFilters: [[`objectID:${ids[0]}`, `objectID:${ids[2]}`]]})
+
+    expect(objectIDs(result)).toEqual([ids[0], ids[2]])
+  })
+
+  it(`matches hyphenated ids in an OR group on multi-index queries`, async () => {
+    const result = await queried({facetFilters: [[`objectID:${ids[1]}`]]})
+
+    expect(objectIDs(result)).toEqual([ids[1]])
+    expect(result.nbHits).toBe(1)
+  })
+
+  it(`matches an id given as a top-level string facetFilter`, async () => {
+    const result = await queried({facetFilters: [`objectID:${ids[1]}`]})
+
+    expect(objectIDs(result)).toEqual([ids[1]])
+  })
+
+  it(`ANDs an objectID group with the other facetFilters`, async () => {
+    const result = await search({facetFilters: [[`type:IMAGE`], [`objectID:${ids[0]}`, `objectID:${ids[2]}`]]})
+
+    expect(objectIDs(result)).toEqual([ids[0]])
+  })
+
+  it(`accepts facetFilters as a JSON string, as Algolia does`, async () => {
+    const result = await search({facetFilters: JSON.stringify([[`objectID:${ids[0]}`]])})
+
+    expect(objectIDs(result)).toEqual([ids[0]])
+  })
+})
+
+describe('hyphenated facetFilters', () => {
+  const app = init()
+  const indexName = `test_NEBULA`
+  const mine = `874a6bd0-3e4f-4618-9819-51b498ddc48e`
+  const theirs = `1f2e3d4c-5b6a-4798-8695-a4b3c2d1e0f9`
+  const documents = [
+    {objectID: `mine-image`, type: `IMAGE`, createdById: mine, tags: [`co-op`]},
+    {objectID: `mine-video`, type: `VIDEO`, createdById: mine, tags: [`launch`]},
+    {objectID: `theirs-image`, type: `IMAGE`, createdById: theirs, tags: [`launch`]},
+    {objectID: `nobodys-image`, type: `IMAGE`, tags: []},
+  ]
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    const res = await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({requests: documents.map(body => ({action: `addObject`, body}))})
+    expect(res.status).toBe(200)
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  const query = async (params: Record<string, unknown>) => {
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, query: ``, hitsPerPage: 20, ...params}]})
+    expect(res.status).toBe(200)
+    return res.body.results[0]
+  }
+
+  const objectIDs = (hits: Array<{objectID: string}>): string[] => hits.map(hit => hit.objectID).sort()
+
+  it(`matches a hyphenated value in a lone-value group, and reports the true total`, async () => {
+    const result = await query({facetFilters: [[`createdById:${mine}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`mine-image`, `mine-video`])
+    expect(result.nbHits).toBe(2)
+  })
+
+  it(`matches a hyphenated value given as a top-level string`, async () => {
+    const result = await query({facetFilters: [`createdById:${theirs}`]})
+
+    expect(objectIDs(result.hits)).toEqual([`theirs-image`])
+  })
+
+  it(`matches either hyphenated value in an OR group, leaving out records missing the attribute`, async () => {
+    const result = await query({facetFilters: [[`createdById:${mine}`, `createdById:${theirs}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`mine-image`, `mine-video`, `theirs-image`])
+  })
+
+  it(`matches a hyphenated value inside an array attribute`, async () => {
+    const result = await query({facetFilters: [[`tags:co-op`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`mine-image`])
+  })
+
+  it(`ANDs a hyphenated value with the other facetFilters`, async () => {
+    const result = await query({facetFilters: [[`createdById:${mine}`], [`type:VIDEO`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`mine-video`])
+  })
+
+  it(`does not take a negation for a hyphenated value`, async () => {
+    const result = await query({facetFilters: [[`createdById:-${mine}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`nobodys-image`, `theirs-image`])
+  })
+})
+
+describe('echoed search params', () => {
+  const app = init()
+  const indexName = `test_NEBULA_PARAMS`
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({
+        requests: [0, 1, 2, 3, 4].map(index => ({
+          action: `addObject`,
+          body: {objectID: `doc-${index}`, name: `Doc ${index}`, type: `IMAGE`},
+        })),
+      })
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  it(`echoes each request as a URL-encoded params string`, async () => {
+    const facetFilters = [[`type:IMAGE`]]
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, query: ``, page: 0, hitsPerPage: 2, facetFilters}]})
+
+    const echoed = Object.fromEntries(new URLSearchParams(res.body.results[0].params))
+
+    expect(echoed).toEqual({query: ``, page: `0`, hitsPerPage: `2`, facetFilters: JSON.stringify(facetFilters)})
+  })
+
+  it(`serves the requested page of a single-index search and reports the true total`, async () => {
+    const pageOf = async (page: number) => {
+      const res = await request(app).post(`/1/indexes/${indexName}/query`).send({page, hitsPerPage: 2})
+      return res.body
+    }
+
+    const [first, second, third] = await Promise.all([pageOf(0), pageOf(1), pageOf(2)])
+    const seen = [first, second, third].flatMap(result => result.hits.map((hit: {objectID: string}) => hit.objectID))
+
+    expect(new Set(seen).size).toBe(5)
+    expect(first.nbHits).toBe(5)
+    expect(first.nbPages).toBe(3)
+    expect(second.page).toBe(1)
+  })
+})

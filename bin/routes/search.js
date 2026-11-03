@@ -16,10 +16,11 @@ const helpers_1 = require("../helpers");
  * index.search()
  */
 const search = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { params: { indexName }, body: { query, filters, facetFilters, hitsPerPage: hitsPerPageParam }, } = req;
+    const { params: { indexName }, body: { query, filters, facetFilters, hitsPerPage: hitsPerPageParam, page: pageParam }, } = req;
     try {
         const db = yield (0, helpers_1.getIndex)();
         const hitsPerPage = parseInt(hitsPerPageParam || `20`, 10);
+        const page = parseInt(pageParam || `0`, 10);
         // Build search expression and extract post-filters
         const { searchExp, objectIDs, notFilters, orGroups } = (0, helpers_1.buildSearchExpression)({
             query,
@@ -27,28 +28,20 @@ const search = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             facetFilters,
         });
         // Execute query
-        let result;
-        if (searchExp.AND.length > 0) {
-            result = yield db.QUERY(searchExp, { DOCUMENTS: true });
-        }
-        else {
-            const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0 || orGroups.length > 0;
-            const allDocs = yield db.ALL_DOCUMENTS(hasPostFilters ? undefined : hitsPerPage);
-            result = { RESULT: allDocs };
-        }
-        // Extract hits and apply post-filters (objectID, NOT filters, negated facetFilter groups)
-        let hits = (0, helpers_1.idToObjectID)(result.RESULT.map((r) => r._doc));
-        hits = (0, helpers_1.applyPostFilters)(hits, objectIDs, notFilters, orGroups);
-        const nbPages = (0, helpers_1.getPageCount)(hits.length, hitsPerPage);
+        const matched = searchExp.AND.length > 0 ? (yield db.QUERY(searchExp, { DOCUMENTS: true })).RESULT : yield db.ALL_DOCUMENTS();
+        // Post-filters run in JS, so the total and the page slice must come from the full filtered set
+        const filtered = (0, helpers_1.applyPostFilters)((0, helpers_1.idToObjectID)(matched.map(r => r._doc)), objectIDs, notFilters, orGroups);
+        const startIndex = page * hitsPerPage;
         return res.status(200).send({
-            hits,
-            nbHits: hits.length,
-            nbPages,
+            hits: filtered.slice(startIndex, startIndex + hitsPerPage),
+            nbHits: filtered.length,
+            nbPages: (0, helpers_1.getPageCount)(filtered.length, hitsPerPage),
             hitsPerPage,
             processingTimeMS: 1,
-            page: 0,
+            page,
             query: query || '',
             index: indexName,
+            params: (0, helpers_1.toParamsString)(req.body),
         });
     }
     catch (err) {

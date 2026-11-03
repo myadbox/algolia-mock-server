@@ -1,5 +1,5 @@
 import {Request, Response} from 'express'
-import {getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFilters} from '../helpers'
+import {getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFilters, toParamsString} from '../helpers'
 
 /**
  * Search in a single index
@@ -8,12 +8,13 @@ import {getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFi
 export const search = async (req: Request, res: Response): Promise<Response> => {
   const {
     params: {indexName},
-    body: {query, filters, facetFilters, hitsPerPage: hitsPerPageParam},
+    body: {query, filters, facetFilters, hitsPerPage: hitsPerPageParam, page: pageParam},
   } = req
 
   try {
     const db = await getIndex()
     const hitsPerPage = parseInt((hitsPerPageParam as string) || `20`, 10)
+    const page = parseInt((pageParam as string) || `0`, 10)
 
     // Build search expression and extract post-filters
     const {searchExp, objectIDs, notFilters, orGroups} = buildSearchExpression({
@@ -23,30 +24,23 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
     })
 
     // Execute query
-    let result
-    if (searchExp.AND.length > 0) {
-      result = await db.QUERY(searchExp, {DOCUMENTS: true})
-    } else {
-      const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0 || orGroups.length > 0
-      const allDocs = await db.ALL_DOCUMENTS(hasPostFilters ? undefined : hitsPerPage)
-      result = {RESULT: allDocs}
-    }
+    const matched =
+      searchExp.AND.length > 0 ? (await db.QUERY(searchExp, {DOCUMENTS: true})).RESULT : await db.ALL_DOCUMENTS()
 
-    // Extract hits and apply post-filters (objectID, NOT filters, negated facetFilter groups)
-    let hits = idToObjectID(result.RESULT.map((r: {_doc: unknown}) => r._doc))
-    hits = applyPostFilters(hits, objectIDs, notFilters, orGroups)
-
-    const nbPages = getPageCount(hits.length, hitsPerPage)
+    // Post-filters run in JS, so the total and the page slice must come from the full filtered set
+    const filtered = applyPostFilters(idToObjectID(matched.map(r => r._doc)), objectIDs, notFilters, orGroups)
+    const startIndex = page * hitsPerPage
 
     return res.status(200).send({
-      hits,
-      nbHits: hits.length,
-      nbPages,
+      hits: filtered.slice(startIndex, startIndex + hitsPerPage),
+      nbHits: filtered.length,
+      nbPages: getPageCount(filtered.length, hitsPerPage),
       hitsPerPage,
       processingTimeMS: 1,
-      page: 0,
+      page,
       query: query || '',
       index: indexName,
+      params: toParamsString(req.body),
     })
   } catch (err) {
     return res.status(500).send({message: err})

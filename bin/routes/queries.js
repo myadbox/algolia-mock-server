@@ -11,6 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.queries = void 0;
 const helpers_1 = require("../helpers");
+const parseFacets = (facets) => typeof facets === `string` && facets.startsWith(`[`) ? (0, helpers_1.parseListParam)(facets) : facets;
 /**
  * Search and filter in multiple indexes
  */
@@ -29,7 +30,8 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 filters: filtersParams,
                 facetFilters: facetFiltersParams,
             });
-            const facetFields = facetsParams ? (Array.isArray(facetsParams) ? facetsParams : [facetsParams]) : [];
+            const parsedFacets = parseFacets(facetsParams);
+            const facetFields = parsedFacets ? (Array.isArray(parsedFacets) ? parsedFacets : [parsedFacets]) : [];
             const hasPostFilters = objectIDs.length > 0 || notFilters.length > 0 || orGroups.length > 0;
             const startIndex = page * hitsPerPage;
             let hits = [];
@@ -70,6 +72,7 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 query: queryParams,
                 index: indexName,
                 facets,
+                params: (0, helpers_1.toParamsString)(request),
             });
         }
         return res.status(200).send({ results });
