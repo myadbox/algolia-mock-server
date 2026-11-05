@@ -16,7 +16,8 @@ A mock server to mimick Algolia's v5 search index, primarily for e2e testing pur
 ### Batch object creation
 
 - **API Endpoint:** `/1/indexes/:indexName/batch`
-- **algoliasearch JS package:** `index.saveObject()`, `index.saveObjects()`, `index.partialUpdateObject()`, `index.partialUpdateObjects()` and `index.deleteObject()`, `index.deleteObjects()`
+- **algoliasearch JS package:** `index.saveObject()`, `index.saveObjects()`, `index.partialUpdateObject()`,
+  `index.partialUpdateObjects()` and `index.deleteObject()`, `index.deleteObjects()`
 
 ### Single index query
 
@@ -78,18 +79,24 @@ A mock server to mimick Algolia's v5 search index, primarily for e2e testing pur
 
 ## Filter Support
 
-The mock server supports a subset of [Algolia's filter syntax](https://www.algolia.com/doc/api-reference/api-parameters/filters) for the `filters` parameter in search requests.
+The mock server supports a subset of
+[Algolia's filter syntax](https://www.algolia.com/doc/api-reference/api-parameters/filters) for the `filters` parameter
+in search requests.
 
 ### Supported Filter Features
 
 - ✅ **Facet filters**: `field:value` (e.g., `type:IMAGE`)
 - ✅ **AND operator**: Combine multiple conditions (e.g., `type:IMAGE AND tags:Launch`)
 - ✅ **NOT operator**: Exclude documents (e.g., `NOT tags:Derived`)
+- ✅ **NOT objectID**: Exclude ids, alone or ANDed with other conditions (e.g.,
+  `NOT objectID:abc123 AND NOT objectID:def456`)
 - ✅ **Parentheses grouping**: Group conditions (e.g., `(field1:value1)`)
 - ✅ **Quoted values**: Handle spaces and special characters (e.g., `tags:"Launch Event"`)
 - ✅ **ObjectID filtering**: Filter by objectID (e.g., `objectID:abc123`)
-- ✅ **ObjectID facetFilters**: Match ids in an OR group (e.g., `[["objectID:abc-123", "objectID:def-456"]]`), ANDed with any other facetFilters
-- ✅ **Hyphenated facetFilters**: Match values containing a hyphen exactly (e.g., `[["createdById:874a6bd0-3e4f-4618-9819-51b498ddc48e"]]`), ANDed with any other facetFilters
+- ✅ **ObjectID facetFilters**: Match ids in an OR group (e.g., `[["objectID:abc-123", "objectID:def-456"]]`), ANDed
+  with any other facetFilters
+- ✅ **Hyphenated facetFilters**: Match values containing a hyphen exactly (e.g.,
+  `[["createdById:874a6bd0-3e4f-4618-9819-51b498ddc48e"]]`), ANDed with any other facetFilters
 
 **Example:**
 
@@ -110,4 +117,5 @@ The following Algolia filter features are **not yet implemented**:
 - ❌ **Boolean filters**: `available:true`, `inStock:false`
 - ❌ **Tag filters**: `_tags:published`
 
-> **Note:** The mock server is designed for e2e testing with common filter patterns. If we need additional filter features, we can add them as needed.
+> **Note:** The mock server is designed for e2e testing with common filter patterns. If we need additional filter
+> features, we can add them as needed.

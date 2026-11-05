@@ -211,13 +211,6 @@ const parseStringFilters = (filterString: string) => {
     return {filterParts: [], objectIDs: [], notFilters: []}
   }
 
-  // Extract objectIDs
-  const objectIDs: string[] = []
-  const objectIDRegex = /objectID:["']?([a-zA-Z0-9_-]+)["']?/gi
-  for (const match of filterString.matchAll(objectIDRegex)) {
-    objectIDs.push(match[1])
-  }
-
   // Extract NOT filters for post-processing
   const notFilters: string[] = []
   const notRegex = /NOT\s+([a-zA-Z0-9_]+:[^\s)]+)/gi
@@ -225,8 +218,14 @@ const parseStringFilters = (filterString: string) => {
     notFilters.push(match[1].replace(/["']/g, ''))
   }
 
-  // Remove NOT filters from the string
+  // Remove NOT filters first, so a negated objectID isn't also read as one to include
   let cleaned = filterString.replace(/NOT\s+[a-zA-Z0-9_]+:[^\s)]+/gi, '').trim()
+
+  const objectIDs: string[] = []
+  const objectIDRegex = /objectID:["']?([a-zA-Z0-9_-]+)["']?/gi
+  for (const match of cleaned.matchAll(objectIDRegex)) {
+    objectIDs.push(match[1])
+  }
 
   // Remove objectID filters
   cleaned = cleaned
@@ -235,8 +234,11 @@ const parseStringFilters = (filterString: string) => {
     .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
     .trim()
 
-  // Clean up any leftover AND operators
-  cleaned = cleaned.replace(/^\s*AND\s+|\s+AND\s*$/gi, '').trim()
+  // Drop the AND operators left dangling by the removals (e.g. `NOT a:1 AND NOT b:2` leaves a bare `AND`)
+  cleaned = cleaned
+    .split(/(?:^|\s+)AND(?:\s+|$)/i)
+    .filter(part => part.trim().length > 0)
+    .join(' AND ')
 
   // If after removing NOT and objectID filters, nothing is left, return empty
   if (!cleaned) {
