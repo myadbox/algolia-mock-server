@@ -236,7 +236,7 @@ const parseStringFilters = (filterString: string) => {
 
   // Drop the AND operators left dangling by the removals (e.g. `NOT a:1 AND NOT b:2` leaves a bare `AND`)
   cleaned = cleaned
-    .split(/(?:^|\s+)AND(?:\s+|$)/i)
+    .split(/(?:^|\s+)AND(?=\s|$)/i)
     .filter(part => part.trim().length > 0)
     .join(' AND ')
 
