@@ -388,3 +388,78 @@ describe('echoed search params', () => {
     expect(second.page).toBe(1)
   })
 })
+
+describe('NOT objectID filters', () => {
+  const app = init()
+  const indexName = `test_NEBULA_NOT_OBJECT_ID`
+  const ids = [`0336a07194ea33b4a5555d73`, `0336a07194ea33b4a5555d74`, `a1b2-c3d4-0003`]
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({
+        requests: ids.map((objectID, index) => ({
+          action: `addObject`,
+          body: {objectID, name: `Asset ${index}`, type: index === 1 ? `VIDEO` : `IMAGE`},
+        })),
+      })
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  const search = async (filters: string) => {
+    const res = await request(app).post(`/1/indexes/${indexName}/query`).send({filters})
+    expect(res.status).toBe(200)
+    return res.body
+  }
+
+  const queried = async (filters: string) => {
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, hitsPerPage: 10, filters}]})
+    expect(res.status).toBe(200)
+    return res.body.results[0]
+  }
+
+  const objectIDs = (result: {hits: Array<{objectID: string}>}) => result.hits.map(hit => hit.objectID).sort()
+
+  it(`excludes only the negated id on single-index search`, async () => {
+    const result = await search(`NOT objectID:${ids[0]}`)
+
+    expect(objectIDs(result)).toEqual([ids[1], ids[2]])
+  })
+
+  it(`excludes only the negated id on multi-index queries`, async () => {
+    const result = await queried(`NOT objectID:${ids[0]}`)
+
+    expect(objectIDs(result)).toEqual([ids[1], ids[2]])
+    expect(result.nbHits).toBe(2)
+  })
+
+  it(`excludes every id in an AND chain of negations`, async () => {
+    const result = await queried(`NOT objectID:${ids[0]} AND NOT objectID:${ids[2]}`)
+
+    expect(objectIDs(result)).toEqual([ids[1]])
+  })
+
+  it(`excludes a quoted hyphenated id`, async () => {
+    const result = await queried(`NOT objectID:"${ids[2]}"`)
+
+    expect(objectIDs(result)).toEqual([ids[0], ids[1]])
+  })
+
+  it(`ANDs a negated id with another facet`, async () => {
+    const result = await queried(`type:IMAGE AND NOT objectID:${ids[0]}`)
+
+    expect(objectIDs(result)).toEqual([ids[2]])
+  })
+
+  it(`ANDs a negated id with a positive id`, async () => {
+    const result = await queried(`objectID:${ids[1]} AND NOT objectID:${ids[0]}`)
+
+    expect(objectIDs(result)).toEqual([ids[1]])
+  })
+})
