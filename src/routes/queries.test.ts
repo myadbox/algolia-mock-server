@@ -445,6 +445,12 @@ describe('NOT objectID filters', () => {
     expect(objectIDs(result)).toEqual([ids[1]])
   })
 
+  it(`excludes every id in a three-way AND chain of negations`, async () => {
+    const result = await queried(`NOT objectID:${ids[0]} AND NOT objectID:${ids[1]} AND NOT objectID:missing`)
+
+    expect(objectIDs(result)).toEqual([ids[2]])
+  })
+
   it(`excludes a quoted hyphenated id`, async () => {
     const result = await queried(`NOT objectID:"${ids[2]}"`)
 
