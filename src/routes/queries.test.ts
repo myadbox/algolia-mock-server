@@ -469,3 +469,80 @@ describe('NOT objectID filters', () => {
     expect(objectIDs(result)).toEqual([ids[1]])
   })
 })
+
+describe('parenthesized OR groups in filters:', () => {
+  const app = init()
+  const indexName = `test_NEBULA_VISIBILITY`
+  const owner = `c74a6bd0-3e4f-4618-9819-51b498ddc48c`
+  const networkEntity = `b337ad1f1a5dc33e0d386065`
+  const accountId = `6d8749c4fe00b757c1bc1c37`
+
+  const documents = [
+    {objectID: `owned`, accountId, createdById: owner, visibleTo: [], hiddenTo: []},
+    {objectID: `shared-via-user`, accountId, createdById: `someone-else`, visibleTo: [`u:${owner}`], hiddenTo: []},
+    {
+      objectID: `shared-via-entity`,
+      accountId,
+      createdById: `someone-else`,
+      visibleTo: [`ne:${networkEntity}`],
+      hiddenTo: [],
+    },
+    {
+      objectID: `shared-but-hidden`,
+      accountId,
+      createdById: `someone-else`,
+      visibleTo: [`u:${owner}`],
+      hiddenTo: [`u:${owner}`],
+    },
+    {objectID: `other-account`, accountId: `other`, createdById: owner, visibleTo: [], hiddenTo: []},
+  ]
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    const res = await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({requests: documents.map(body => ({action: `addObject`, body}))})
+    expect(res.status).toBe(200)
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  const filters =
+    `accountId:"${accountId}" AND ` +
+    `(createdById:"${owner}" OR visibleTo:"u:${owner}" OR visibleTo:"ne:${networkEntity}") AND ` +
+    `(createdById:"${owner}" OR NOT hiddenTo:"u:${owner}")`
+
+  const objectIDs = (hits: Array<{objectID: string}>): string[] => hits.map(hit => hit.objectID).sort()
+
+  it(`decomposes each OR group instead of treating it as one literal token, on single-index search`, async () => {
+    const res = await request(app).post(`/1/indexes/${indexName}/query`).send({filters})
+
+    expect(res.status).toBe(200)
+    expect(objectIDs(res.body.hits)).toEqual([`owned`, `shared-via-entity`, `shared-via-user`])
+    expect(res.body.nbHits).toBe(3)
+  })
+
+  it(`decomposes each OR group instead of treating it as one literal token, on multi-index queries`, async () => {
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, hitsPerPage: 10, filters}]})
+
+    expect(res.status).toBe(200)
+    expect(objectIDs(res.body.results[0].hits)).toEqual([`owned`, `shared-via-entity`, `shared-via-user`])
+    expect(res.body.results[0].nbHits).toBe(3)
+  })
+
+  it(`excludes a record matched by the first OR group but rejected by a NOT in the second`, async () => {
+    const res = await request(app).post(`/1/indexes/${indexName}/query`).send({filters})
+
+    expect(objectIDs(res.body.hits)).not.toContain(`shared-but-hidden`)
+  })
+
+  it(`excludes records outside the plain top-level AND clause`, async () => {
+    const res = await request(app).post(`/1/indexes/${indexName}/query`).send({filters})
+
+    expect(objectIDs(res.body.hits)).not.toContain(`other-account`)
+  })
+})

@@ -147,6 +147,8 @@ export const toParamsString = ({indexName, type, ...params}: Record<string, unkn
  * Handles both string filters and array facetFilters
  * Negated (`attr:-value`), objectID and hyphenated facetFilters can't be expressed in search-index, so they are
  * returned for post-filtering: a lone negation becomes a NOT filter, any other group containing one is evaluated whole in `orGroups`
+ * A parenthesized `(a:1 OR b:2)` group in a `filters:` string is likewise evaluated whole in `orGroups`, since
+ * search-index would otherwise treat the unparsed group as a single literal token lookup
  * Returns { searchExp, objectIDs, notFilters, orGroups }
  */
 export const buildSearchExpression = (params: {
@@ -170,6 +172,7 @@ export const buildSearchExpression = (params: {
     const parsed = parseStringFilters(filters as string)
     objectIDs = parsed.objectIDs
     notFilters = parsed.notFilters
+    orGroups.push(...parsed.orGroups)
 
     if (parsed.filterParts.length > 0) {
       searchExp.AND.push({AND: parsed.filterParts})
@@ -203,58 +206,89 @@ export const buildSearchExpression = (params: {
 }
 
 /**
- * Parse string filters into filter parts, objectIDs, and NOT filters
- * Note: objectID and NOT filters are extracted for post-filtering (search-index limitation)
+ * Split a filters: string on a top-level keyword (AND/OR), ignoring occurrences nested inside parentheses
+ */
+const splitTopLevel = (input: string, keyword: string): string[] => {
+  const parts: string[] = []
+  const upper = input.toUpperCase()
+  const kw = keyword.toUpperCase()
+  let depth = 0
+  let start = 0
+  let i = 0
+
+  while (i < input.length) {
+    const char = input[i]
+    if (char === '(') depth++
+    else if (char === ')') depth--
+
+    if (depth === 0 && upper.startsWith(kw, i)) {
+      const boundaryBefore = i === 0 || /\s/.test(input[i - 1])
+      const afterIndex = i + kw.length
+      const boundaryAfter = afterIndex >= input.length || /\s/.test(input[afterIndex])
+      if (boundaryBefore && boundaryAfter) {
+        parts.push(input.slice(start, i))
+        i = afterIndex
+        start = i
+        continue
+      }
+    }
+    i++
+  }
+  parts.push(input.slice(start))
+
+  return parts.map(part => part.trim()).filter(part => part.length > 0)
+}
+
+const stripQuotes = (value: string): string => value.replace(/["']/g, '')
+
+/**
+ * Normalize one item of a parenthesized OR group into the `field:value` / `field:-value` shape
+ * `applyPostFilters`'s `hitMatchesFacetFilter` already understands, so `NOT field:value` becomes `field:-value`
+ */
+const normalizeOrGroupItem = (item: string): string => {
+  const notMatch = item.trim().match(/^NOT\s+(.+)$/i)
+  if (!notMatch) return stripQuotes(item.trim())
+
+  const [field, value] = splitFacetFilter(stripQuotes(notMatch[1]))
+  return `${field}:-${value}`
+}
+
+/**
+ * Parse string filters into filter parts, objectIDs, NOT filters and OR groups
+ * Note: objectID, NOT filters and parenthesized OR groups are extracted for post-filtering (search-index
+ * can only treat an AND array entry as a single literal token lookup, never a nested boolean sub-expression)
  */
 const parseStringFilters = (filterString: string) => {
   if (!filterString) {
-    return {filterParts: [], objectIDs: [], notFilters: []}
+    return {filterParts: [], objectIDs: [], notFilters: [], orGroups: []}
   }
 
-  // Extract NOT filters for post-processing
-  const notFilters: string[] = []
-  const notRegex = /NOT\s+([a-zA-Z0-9_]+:[^\s)]+)/gi
-  for (const match of filterString.matchAll(notRegex)) {
-    notFilters.push(match[1].replace(/["']/g, ''))
-  }
-
-  // Remove NOT filters first, so a negated objectID isn't also read as one to include
-  let cleaned = filterString.replace(/NOT\s+[a-zA-Z0-9_]+:[^\s)]+/gi, '').trim()
-
+  const filterParts: string[] = []
   const objectIDs: string[] = []
-  const objectIDRegex = /objectID:["']?([a-zA-Z0-9_-]+)["']?/gi
-  for (const match of cleaned.matchAll(objectIDRegex)) {
-    objectIDs.push(match[1])
+  const notFilters: string[] = []
+  const orGroups: string[][] = []
+
+  for (const clause of splitTopLevel(filterString.trim(), 'AND')) {
+    if (clause.startsWith('(') && clause.endsWith(')')) {
+      const items = splitTopLevel(clause.slice(1, -1), 'OR').map(normalizeOrGroupItem)
+      if (items.length > 0) orGroups.push(items)
+      continue
+    }
+
+    const notMatch = clause.match(/^NOT\s+([a-zA-Z0-9_]+):(.+)$/i)
+    if (notMatch) {
+      notFilters.push(`${notMatch[1]}:${stripQuotes(notMatch[2])}`)
+      continue
+    }
+
+    const objectIDMatch = clause.match(/^objectID:["']?([a-zA-Z0-9_-]+)["']?$/i)
+    if (objectIDMatch) {
+      objectIDs.push(objectIDMatch[1])
+      continue
+    }
+
+    filterParts.push(stripQuotes(clause))
   }
 
-  // Remove objectID filters
-  cleaned = cleaned
-    .replace(/\s*AND\s+objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
-    .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?\s*AND\s*/gi, '')
-    .replace(/objectID:["']?[a-zA-Z0-9_-]+["']?/gi, '')
-    .trim()
-
-  // Drop the AND operators left dangling by the removals (e.g. `NOT a:1 AND NOT b:2` leaves a bare `AND`)
-  cleaned = cleaned
-    .split(/(?:^|\s+)AND(?=\s|$)/i)
-    .filter(part => part.trim().length > 0)
-    .join(' AND ')
-
-  // If after removing NOT and objectID filters, nothing is left, return empty
-  if (!cleaned) {
-    return {filterParts: [], objectIDs, notFilters}
-  }
-
-  // Split by AND, clean up
-  const filterParts = cleaned
-    .split(/\s+AND\s+/i)
-    .map(part =>
-      part
-        .trim()
-        .replace(/^\(|\)$/g, '')
-        .replace(/["']/g, '')
-    )
-    .filter(part => part.length > 0)
-
-  return {filterParts, objectIDs, notFilters}
+  return {filterParts, objectIDs, notFilters, orGroups}
 }
