@@ -90,7 +90,9 @@ in search requests.
 - ✅ **NOT operator**: Exclude documents (e.g., `NOT tags:Derived`)
 - ✅ **NOT objectID**: Exclude ids, alone or ANDed with other conditions (e.g.,
   `NOT objectID:abc123 AND NOT objectID:def456`)
-- ✅ **Parentheses grouping**: Group conditions (e.g., `(field1:value1)`)
+- ✅ **Parentheses grouping with OR**: A parenthesized group is decomposed into its OR'd conditions and evaluated as a
+  whole (e.g., `accountId:X AND (createdById:A OR visibleTo:B)`), including a `NOT` condition inside the group (e.g.,
+  `(createdById:A OR NOT hiddenTo:B)`)
 - ✅ **Quoted values**: Handle spaces and special characters (e.g., `tags:"Launch Event"`)
 - ✅ **ObjectID filtering**: Filter by objectID (e.g., `objectID:abc123`)
 - ✅ **ObjectID facetFilters**: Match ids in an OR group (e.g., `[["objectID:abc-123", "objectID:def-456"]]`), ANDed
@@ -111,7 +113,8 @@ in search requests.
 
 The following Algolia filter features are **not yet implemented**:
 
-- ❌ **OR operator in filters**: `field1:value1 OR field1:value2` (use facetFilters array format instead)
+- ❌ **Bare OR operator in filters (no parentheses)**: `field1:value1 OR field1:value2` (wrap it in parentheses, or use
+  facetFilters array format instead)
 - ❌ **Numeric comparisons**: `price > 100`, `price >= 10`, `price < 50`
 - ❌ **Numeric ranges**: `price:10 TO 100`
 - ❌ **Boolean filters**: `available:true`, `inStock:false`
