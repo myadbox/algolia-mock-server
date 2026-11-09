@@ -109,6 +109,20 @@ in search requests.
 }
 ```
 
+### Secured API keys
+
+A search made with a
+[secured API key](https://www.algolia.com/doc/guides/security/api-keys/how-to/user-restricted-access-to-data) is
+filtered by the `filters` embedded in that key, ANDed with the search's own `filters` and `facetFilters`, as Algolia
+does. This applies to `/1/indexes/:indexName/query` and `/1/indexes/*/queries`, whether the key arrives as the
+`x-algolia-api-key` header (Node clients) or query parameter (browser clients). The embedded filters use the same filter
+syntax as above.
+
+Plain admin and search keys, and requests without a key, are not filtered.
+
+The mock does not know the parent key, so it does not verify the key's HMAC. It also ignores the key's other
+restrictions (`validUntil`, `restrictIndices`, `userToken` and embedded search params).
+
 ### Unsupported Filter Features
 
 The following Algolia filter features are **not yet implemented**:

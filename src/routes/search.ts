@@ -1,5 +1,6 @@
 import {Request, Response} from 'express'
 import {getIndex, getPageCount, idToObjectID, buildSearchExpression, applyPostFilters, toParamsString} from '../helpers'
+import {withSecuredApiKeyFilters} from '../securedApiKey'
 
 /**
  * Search in a single index
@@ -19,7 +20,7 @@ export const search = async (req: Request, res: Response): Promise<Response> => 
     // Build search expression and extract post-filters
     const {searchExp, objectIDs, notFilters, orGroups} = buildSearchExpression({
       query,
-      filters,
+      filters: withSecuredApiKeyFilters(req, filters),
       facetFilters,
     })
 
