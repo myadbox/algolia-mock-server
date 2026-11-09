@@ -9,6 +9,7 @@ import {
   parseListParam,
   toParamsString,
 } from '../helpers'
+import {withSecuredApiKeyFilters} from '../securedApiKey'
 
 const parseFacets = (facets: unknown): unknown =>
   typeof facets === `string` && facets.startsWith(`[`) ? parseListParam(facets) : facets
@@ -43,7 +44,7 @@ export const queries = async (req: Request, res: Response): Promise<Response> =>
       // Build search expression and extract post-filters
       const {searchExp, objectIDs, notFilters, orGroups} = buildSearchExpression({
         query: queryParams,
-        filters: filtersParams,
+        filters: withSecuredApiKeyFilters(req, filtersParams),
         facetFilters: facetFiltersParams,
       })
 
