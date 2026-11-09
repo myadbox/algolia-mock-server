@@ -11,6 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.search = void 0;
 const helpers_1 = require("../helpers");
+const securedApiKey_1 = require("../securedApiKey");
 /**
  * Search in a single index
  * index.search()
@@ -24,7 +25,7 @@ const search = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         // Build search expression and extract post-filters
         const { searchExp, objectIDs, notFilters, orGroups } = (0, helpers_1.buildSearchExpression)({
             query,
-            filters,
+            filters: (0, securedApiKey_1.withSecuredApiKeyFilters)(req, filters),
             facetFilters,
         });
         // Execute query

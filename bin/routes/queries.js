@@ -11,6 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.queries = void 0;
 const helpers_1 = require("../helpers");
+const securedApiKey_1 = require("../securedApiKey");
 const parseFacets = (facets) => typeof facets === `string` && facets.startsWith(`[`) ? (0, helpers_1.parseListParam)(facets) : facets;
 /**
  * Search and filter in multiple indexes
@@ -27,7 +28,7 @@ const queries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             // Build search expression and extract post-filters
             const { searchExp, objectIDs, notFilters, orGroups } = (0, helpers_1.buildSearchExpression)({
                 query: queryParams,
-                filters: filtersParams,
+                filters: (0, securedApiKey_1.withSecuredApiKeyFilters)(req, filtersParams),
                 facetFilters: facetFiltersParams,
             });
             const parsedFacets = parseFacets(facetsParams);
