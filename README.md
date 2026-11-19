@@ -99,6 +99,8 @@ in search requests.
   with any other facetFilters
 - ✅ **Hyphenated facetFilters**: Match values containing a hyphen exactly (e.g.,
   `[["createdById:874a6bd0-3e4f-4618-9819-51b498ddc48e"]]`), ANDed with any other facetFilters
+- ✅ **Colon-valued facetFilters**: Match values that carry their own prefix exactly (e.g.,
+  `[["visibleTo:ne:646f1f2e3d4c5b6a47980001"]]`), ANDed with any other facetFilters
 
 **Example:**
 

@@ -342,6 +342,83 @@ describe('hyphenated facetFilters', () => {
   })
 })
 
+// A consumer's sharing-principal convention: a type prefix plus an id, joined by a colon
+// (e.g. `ne:<networkEntityId>`, `t:<teamId>`) rather than a plain hyphenated id.
+describe(`colon-valued facetFilters`, () => {
+  const app = init()
+  const indexName = `test_NEBULA`
+  const entity = `646f1f2e3d4c5b6a47980001`
+  const ancestor = `646f1f2e3d4c5b6a47980002`
+  const team = `646f1f2e3d4c5b6a47980003`
+  const documents = [
+    {objectID: `direct-share`, visibleTo: [`nd:${entity}`]},
+    {objectID: `cascading-share`, visibleTo: [`ne:${entity}`, `nd:${ancestor}`]},
+    {objectID: `team-share`, visibleTo: [`t:${team}`]},
+    {objectID: `unshared`, visibleTo: []},
+  ]
+
+  beforeAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+    const res = await request(app)
+      .post(`/1/indexes/${indexName}/batch`)
+      .send({requests: documents.map(body => ({action: `addObject`, body}))})
+    expect(res.status).toBe(200)
+  })
+
+  afterAll(async () => {
+    await request(app).post(`/1/indexes/${indexName}/clear`)
+  })
+
+  const query = async (params: Record<string, unknown>) => {
+    const res = await request(app)
+      .post(`/1/indexes/*/queries`)
+      .send({requests: [{indexName, query: ``, hitsPerPage: 20, ...params}]})
+    expect(res.status).toBe(200)
+    return res.body.results[0]
+  }
+
+  const objectIDs = (hits: Array<{objectID: string}>): string[] => hits.map(hit => hit.objectID).sort()
+
+  it(`matches a colon-valued value in a lone-value group, and reports the true total`, async () => {
+    const result = await query({facetFilters: [[`visibleTo:nd:${entity}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`direct-share`])
+    expect(result.nbHits).toBe(1)
+  })
+
+  it(`matches a colon-valued value given as a top-level string`, async () => {
+    const result = await query({facetFilters: [`visibleTo:t:${team}`]})
+
+    expect(objectIDs(result.hits)).toEqual([`team-share`])
+  })
+
+  it(`matches either colon-valued value in an OR group, leaving out records missing the attribute`, async () => {
+    const result = await query({
+      facetFilters: [[`visibleTo:ne:${entity}`, `visibleTo:nd:${entity}`, `visibleTo:nd:${ancestor}`]],
+    })
+
+    expect(objectIDs(result.hits)).toEqual([`cascading-share`, `direct-share`])
+  })
+
+  it(`matches a colon-valued value inside a multi-value array attribute`, async () => {
+    const result = await query({facetFilters: [[`visibleTo:nd:${ancestor}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`cascading-share`])
+  })
+
+  it(`ANDs a colon-valued value with the other facetFilters`, async () => {
+    const result = await query({facetFilters: [[`visibleTo:ne:${entity}`], [`visibleTo:nd:${ancestor}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`cascading-share`])
+  })
+
+  it(`does not take a negation for a colon-valued value`, async () => {
+    const result = await query({facetFilters: [[`visibleTo:-nd:${entity}`]]})
+
+    expect(objectIDs(result.hits)).toEqual([`cascading-share`, `team-share`, `unshared`])
+  })
+})
+
 describe('echoed search params', () => {
   const app = init()
   const indexName = `test_NEBULA_PARAMS`
