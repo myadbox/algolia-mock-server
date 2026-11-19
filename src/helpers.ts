@@ -69,8 +69,16 @@ const isObjectIDFacetFilter = (filter: unknown): filter is string =>
 const isHyphenatedFacetFilter = (filter: unknown): filter is string =>
   typeof filter === `string` && splitFacetFilter(filter)[1].includes(`-`)
 
+// Same tokenisation problem as a hyphenated value, for a value carrying its own prefix (e.g. a sharing
+// principal's `ne:<id>` / `t:<id>` convention) rather than a plain id
+const isColonValuedFacetFilter = (filter: unknown): filter is string =>
+  typeof filter === `string` && splitFacetFilter(filter)[1].includes(`:`)
+
 const needsPostFiltering = (filter: unknown): boolean =>
-  isNegatedFacetFilter(filter) || isObjectIDFacetFilter(filter) || isHyphenatedFacetFilter(filter)
+  isNegatedFacetFilter(filter) ||
+  isObjectIDFacetFilter(filter) ||
+  isHyphenatedFacetFilter(filter) ||
+  isColonValuedFacetFilter(filter)
 
 const hitHasFacetValue = (hit: Record<string, unknown>, field: string, value: string): boolean => {
   const hitValue = hit[field]
@@ -187,7 +195,7 @@ export const buildSearchExpression = (params: {
       if (isNegatedFacetFilter(lone)) {
         const [field, value] = splitFacetFilter(lone)
         notFilters.push(`${field}:${value.slice(1)}`)
-      } else if (isObjectIDFacetFilter(lone) || isHyphenatedFacetFilter(lone)) {
+      } else if (isObjectIDFacetFilter(lone) || isHyphenatedFacetFilter(lone) || isColonValuedFacetFilter(lone)) {
         orGroups.push([lone])
       } else if (Array.isArray(filter) && filter.some(needsPostFiltering)) {
         orGroups.push(filter as string[])

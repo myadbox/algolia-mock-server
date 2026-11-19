@@ -82,7 +82,13 @@ const isNegatedFacetFilter = (filter) => typeof filter === `string` && splitFace
 const isObjectIDFacetFilter = (filter) => typeof filter === `string` && splitFacetFilter(filter)[0] === `objectID`;
 // search-index tokenises scalar values on punctuation, so a hyphenated value (a user id, say) never matches itself
 const isHyphenatedFacetFilter = (filter) => typeof filter === `string` && splitFacetFilter(filter)[1].includes(`-`);
-const needsPostFiltering = (filter) => isNegatedFacetFilter(filter) || isObjectIDFacetFilter(filter) || isHyphenatedFacetFilter(filter);
+// Same tokenisation problem as a hyphenated value, for a value carrying its own prefix (e.g. a sharing
+// principal's `ne:<id>` / `t:<id>` convention) rather than a plain id
+const isColonValuedFacetFilter = (filter) => typeof filter === `string` && splitFacetFilter(filter)[1].includes(`:`);
+const needsPostFiltering = (filter) => isNegatedFacetFilter(filter) ||
+    isObjectIDFacetFilter(filter) ||
+    isHyphenatedFacetFilter(filter) ||
+    isColonValuedFacetFilter(filter);
 const hitHasFacetValue = (hit, field, value) => {
     const hitValue = hit[field];
     if (Array.isArray(hitValue)) {
@@ -170,7 +176,7 @@ const buildSearchExpression = (params) => {
                 const [field, value] = splitFacetFilter(lone);
                 notFilters.push(`${field}:${value.slice(1)}`);
             }
-            else if (isObjectIDFacetFilter(lone) || isHyphenatedFacetFilter(lone)) {
+            else if (isObjectIDFacetFilter(lone) || isHyphenatedFacetFilter(lone) || isColonValuedFacetFilter(lone)) {
                 orGroups.push([lone]);
             }
             else if (Array.isArray(filter) && filter.some(needsPostFiltering)) {
